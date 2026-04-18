@@ -1,0 +1,4 @@
+interface:
+  display_name: "直达重点代码解释"
+  short_description: "Conclusion-first Chinese coding explanations with code mapping"
+  default_prompt: "Use $zh-direct-code-explainer. Explain in Chinese with conclusion first, plain language, business wording, concise key points, and code references."

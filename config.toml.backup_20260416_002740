@@ -1,0 +1,28 @@
+model_provider = "codexzh"
+model = "gpt-5.3-codex"
+model_reasoning_effort = "low"
+# 缓存优化配置
+cache_size_mb = 512
+cache_ttl = "30m"
+smart_cache = true
+cache_compression = true
+approvals_reviewer = "user"
+
+[model_providers.codexzh]
+name = "codexzh"
+base_url = "https://api.codexzh.com/v1"
+wire_api = "responses"
+requires_openai_auth = true
+web_search = "live"
+
+[projects.'D:\hanhan']
+trust_level = "trusted"
+
+[notice]
+hide_full_access_warning = true
+
+[notice.model_migrations]
+"gpt-5.2" = "gpt-5.4"
+
+[windows]
+sandbox = "unelevated"

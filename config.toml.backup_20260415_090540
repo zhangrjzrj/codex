@@ -1,0 +1,24 @@
+model_provider = "duckcoding"
+model = "gpt-5.4"
+model_reasoning_effort = "low"
+network_access = "enabled"
+disable_response_storage = true
+approvals_reviewer = "user"
+
+[model_providers.duckcoding]
+name = "OpenAI"
+base_url = "https://api.duckcoding.ai/v1"
+wire_api = "responses"
+requires_openai_auth = true
+
+[projects.'D:\hanhan']
+trust_level = "trusted"
+
+[notice]
+hide_full_access_warning = true
+
+[notice.model_migrations]
+"gpt-5.3-codex" = "gpt-5.4"
+
+[windows]
+sandbox = "unelevated"

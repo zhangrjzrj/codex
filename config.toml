@@ -1,0 +1,80 @@
+# =========================
+# Active Profile（只改这里）
+# =========================
+# 可选: "codexzh" / "duckcoding"
+
+#model_provider = "codexzh"
+#model = "gpt-5.2"
+
+model_provider = "duckcoding"
+model = "gpt-5.3-codex"
+
+model_reasoning_effort = "low"
+
+# 下面两项是否生效取决于客户端版本；默认注释避免兼容性问题
+# network_access = "enabled"
+# disable_response_storage = true
+
+# =========================
+# Shared Settings（通用配置）
+# =========================
+cache_size_mb = 512
+cache_ttl = "30m"
+smart_cache = true
+cache_compression = true
+notify = ["python", "F:\\messiah_h74\\codex-notify.py"]
+approvals_reviewer = "user"
+personality = "pragmatic"
+
+# =========================
+# Providers（并存）
+# =========================
+[model_providers.codexzh]
+name = "codexzh"
+base_url = "https://api.codexzh.com/v1"
+wire_api = "responses"
+requires_openai_auth = true
+web_search = "live"
+
+[model_providers.duckcoding]
+name = "OpenAI"
+base_url = "https://api.duckcoding.ai/v1"
+wire_api = "responses"
+requires_openai_auth = true
+
+# =========================
+# Project Trust（按你现有保留）
+# =========================
+[projects.'F:\messiah_h74_new_branch']
+trust_level = "trusted"
+
+[projects.'F:\messiah_h74_latest_mobile']
+trust_level = "trusted"
+
+[projects.'C:\Windows\System32']
+trust_level = "trusted"
+
+[projects.'F:\messiah_h74_new_branch\Messiah']
+trust_level = "trusted"
+
+[projects.'F:\messiah_h74_latest']
+trust_level = "trusted"
+
+[projects.'F:\messiah_h74_B']
+trust_level = "trusted"
+
+[projects.'F:\hanhan']
+trust_level = "trusted"
+
+[projects.'D:\hanhan']
+trust_level = "trusted"
+
+[notice]
+hide_full_access_warning = true
+
+[notice.model_migrations]
+"gpt-5.2" = "gpt-5.4"
+"gpt-5.3-codex" = "gpt-5.4"
+
+[windows]
+sandbox = "unelevated"

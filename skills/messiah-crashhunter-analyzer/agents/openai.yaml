@@ -1,0 +1,5 @@
+version: 1
+display_name: Messiah CrashHunter Analyzer
+short_description: Pull and analyze Messiah Android CrashHunter artifacts.
+default_prompt: |
+  Pull the latest Messiah Android CrashHunter dump from the connected device and summarize the crash root cause (assert/file/line/signal + key logcat clues). If stackwalk and symbols are available, also symbolize the minidump and include the top stack frames.

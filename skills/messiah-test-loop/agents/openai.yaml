@@ -1,0 +1,4 @@
+interface:
+  display_name: "Messiah Test Loop"
+  short_description: "Run Messiah build-login-test loops via Telnet"
+  default_prompt: "Use $messiah-test-loop to build, launch, login, run a scenario, and collect machine-readable test results."

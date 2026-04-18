@@ -1,0 +1,4 @@
+interface:
+  display_name: "Messiah Dump Analyzer"
+  short_description: "Silently analyzes Windows dump crashes for root cause"
+  default_prompt: "Use $messiah-windbg-dump-analyzer to analyze a Windows .dmp crash dump silently and summarize the likely root cause."

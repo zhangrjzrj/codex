@@ -1,0 +1,25 @@
+model_provider = "codexzh"
+model = "gpt-5.3-codex"
+model_reasoning_effort = "low"
+disable_response_storage = true
+approvals_reviewer = "user"
+
+[model_providers.codexzh]
+name = "codexzh"
+base_url = "https://api.codexzh.com/v1"
+wire_api = "responses"
+requires_openai_auth = true
+web_search = "live"
+
+[projects.'D:\hanhan']
+trust_level = "trusted"
+
+[notice]
+hide_full_access_warning = true
+
+[notice.model_migrations]
+"gpt-5.2" = "gpt-5.4"
+"gpt-5.3-codex" = "gpt-5.4"
+
+[windows]
+sandbox = "unelevated"

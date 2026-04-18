@@ -1,0 +1,31 @@
+﻿# Secrets / auth
+auth.json
+*.pem
+*.key
+*.token
+
+# Runtime/session data
+sessions/
+memories/
+.tmp/
+tmp/
+.sandbox/
+.sandbox-bin/
+.sandbox-secrets/
+
+# Logs / databases
+*.log
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+history.jsonl
+
+# Local state cache
+cap_sid
+installation_id
+state_*.sqlite*
+logs_*.sqlite*
+
+# OS
+.DS_Store
+Thumbs.db

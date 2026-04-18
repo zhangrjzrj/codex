@@ -1,0 +1,7 @@
+interface:
+  display_name: "Messiah Tracy Analyzer"
+  short_description: "Analyze Tracy captures and summarize stalls"
+  default_prompt: "Use $messiah-tracy-analyzer to inspect a .tracy file, export hotspots when possible, and explain where it stalls and why."
+
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Messiah IB Build Fix"
+  short_description: "Compile Messiah with IncrediBuild and triage build failures"
+  default_prompt: "Build Messiah with IncrediBuild, save logs, summarize errors, and retry safe fixes."

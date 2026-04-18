@@ -1,0 +1,4 @@
+skill:
+  display_name: "Messiah RenderDoc Capture"
+  short_description: "Launch, play, and auto-capture RenderDoc during NBS playback"
+  default_prompt: "Use $messiah-renderdoc-capture to automatically launch Messiah, play a demo, and trigger RenderDoc capture at playback start or around a target frame."
