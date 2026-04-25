@@ -1,0 +1,4 @@
+﻿name: apk-pack
+display_name: APK Pack
+short_description: 云打包 uni-app Android APK
+default_prompt: 使用 HBuilderX CLI 执行 Android 云打包，只返回打包产物与日志。
