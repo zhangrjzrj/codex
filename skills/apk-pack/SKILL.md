@@ -1,63 +1,61 @@
-﻿---
+---
 name: apk-pack
-description: Use this skill when the user needs Android APK cloud packaging for a uni-app/HBuilderX project only. This skill focuses strictly on packaging and returning package artifacts and logs, and does not perform install, run, or debugging steps.
+description: Use this skill when the user needs Android APK packaging for a uni-app/HBuilderX project. Prefer local offline packaging first (no cloud quota), with optional cloud fallback. This skill only handles packaging outputs and logs.
 ---
 
 # APK Pack
 
 ## Overview
 
-Use this skill to produce Android APK builds from a uni-app project through `HBuilderX cli.exe pack`.
-This skill only handles packaging and packaging outputs.
+Use this skill to produce Android APK builds for uni-app projects.
+Default strategy is local offline packaging to avoid cloud daily limits.
+
+## Modes
+
+- `local` (default):
+  - `publish app-android --type appResource`
+  - inject resources into offline project (`HBuilder-Integrate-AS`)
+  - `gradlew :simpleDemo:assembleRelease`
+- `cloud`:
+  - `cli pack --platform android --android.androidpacktype 3`
+- `auto`:
+  - try local first, fallback to cloud on failure
 
 ## When To Use
 
-- User asks to "打包 APK" / "自动打包" / "云打包"
-- Project is a uni-app project with `manifest.json`
-- You need a reproducible package command and build log output
+- User asks to package/build Android APK for uni-app
+- User wants reproducible package outputs/logs
+- User needs cloud-limit-free packaging path
 
 ## Do Not Use For
 
 - Device install / adb launch / runtime debugging
-- Code fix loops
-- Logcat analysis
+- Code fixes or test loops
 
 ## Inputs
 
-- `project_path` (required): absolute path to project root
-- `package_name` (required): Android package name
-- `hbuilderx_cli` (optional): defaults to `D:\hanhan\HBuilderX\cli.exe`
-- `pack_type` (optional): `cloud` (default) or `custom`
-  - `cloud` maps to `--android.androidpacktype 3`
-  - `custom` maps to `--android.androidpacktype 0` and needs cert args
-
-## Workflow
-
-1. Validate `cli.exe` and `manifest.json` exist
-2. Validate user is logged in (`cli user info`)
-3. Run pack command
-4. Return:
-- raw build log
-- parsed download URL if present
-- local download path if downloaded
-
-## Command Template
-
-```powershell
-& "$hbuilderx_cli" pack --project "$project_path" --platform android --android.packagename "$package_name" --android.androidpacktype 3
-```
+- `project_path` (required)
+- `package_name` (required)
+- `mode` (optional): `local|cloud|auto`, default `local`
+- `offline_project_path` (optional): existing `HBuilder-Integrate-AS` path
+- `offline_sdk_zip_path` (optional): offline SDK zip; script can auto-extract
+- `android_sdk_dir` (optional): default `D:\AndroidSDK`
+- `hbuilderx_cli` (optional): default `D:\hanhan\HBuilderX\cli.exe`
 
 ## Script
 
-Run:
-
 ```powershell
-pwsh -File scripts/build_apk.ps1 -ProjectPath "D:\hanhan\app" -PackageName "com.chaoweisuanli.duomilu"
+# Local first
+powershell -ExecutionPolicy Bypass -File scripts/build_apk.ps1 -ProjectPath "D:\hanhan\app" -PackageName "com.chaoweisuanli.duomilu" -Mode local
+
+# Auto fallback
+powershell -ExecutionPolicy Bypass -File scripts/build_apk.ps1 -ProjectPath "D:\hanhan\app" -PackageName "com.chaoweisuanli.duomilu" -Mode auto
 ```
 
 ## Output Contract
 
 - `status`: success|failed
+- `mode_used`: local|cloud
 - `pack_log_path`
-- `download_url` (if available)
-- `downloaded_apk_path` (if available)
+- `local_apk_path` (if local success)
+- `download_url` / `downloaded_apk_path` (if cloud success)
