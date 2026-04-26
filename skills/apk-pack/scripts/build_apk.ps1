@@ -1,17 +1,34 @@
-﻿param(
-  [Parameter(Mandatory=$true)][string]$ProjectPath,
-  [Parameter(Mandatory=$true)][string]$PackageName,
-  [ValidateSet('auto','local','cloud')][string]$Mode = 'local',
+param(
+  [Parameter(Mandatory = $true)][string]$ProjectPath,
+  [Parameter(Mandatory = $true)][string]$PackageName,
+  [ValidateSet('auto', 'local', 'cloud')][string]$Mode = 'local',
   [string]$HBuilderXCli = 'D:\hanhan\HBuilderX\cli.exe',
   [string]$OutputDir = '',
   [switch]$DownloadApk,
   [string]$OfflineSdkZipPath = '',
   [string]$OfflineSdkExtractDir = 'D:\hanhan\offline-pack\android-sdk',
   [string]$OfflineProjectPath = '',
-  [string]$AndroidSdkDir = 'D:\AndroidSDK'
+  [string]$AndroidSdkDir = 'D:\AndroidSDK',
+  [Parameter(ValueFromRemainingArguments = $true)][string[]]$ExtraArgs
 )
 
 $ErrorActionPreference = 'Stop'
+$script:VerifyTag = ''
+
+function Resolve-VerifyTag {
+  $tagFile = Join-Path $ProjectPath '.apk_verify_tag'
+  if (Test-Path -LiteralPath $tagFile) {
+    $raw = Get-Content -LiteralPath $tagFile -Raw
+    $tag = ($raw -split "(`r`n|`n|`r)")[0].Trim()
+    if (-not [string]::IsNullOrWhiteSpace($tag)) {
+      return $tag
+    }
+  }
+  if (-not [string]::IsNullOrWhiteSpace($env:APK_VERIFY_TAG)) {
+    return [string]$env:APK_VERIFY_TAG
+  }
+  return ''
+}
 
 function Ensure-BaseValidation {
   if (-not (Test-Path -LiteralPath $HBuilderXCli)) {
@@ -20,7 +37,8 @@ function Ensure-BaseValidation {
   if (-not (Test-Path -LiteralPath $ProjectPath)) {
     throw "Project path not found: $ProjectPath"
   }
-  if (-not (Test-Path -LiteralPath (Join-Path $ProjectPath 'manifest.json'))) {
+  $manifestPath = Join-Path $ProjectPath 'manifest.json'
+  if (-not (Test-Path -LiteralPath $manifestPath)) {
     throw "manifest.json not found under project: $ProjectPath"
   }
 }
@@ -32,18 +50,81 @@ function Ensure-OutputDir([string]$DefaultSubdir) {
   New-Item -ItemType Directory -Force -Path $script:OutputDir | Out-Null
 }
 
-function Write-ResultAndExit([string]$status, [string]$modeUsed, [string]$packLogPath, [string]$downloadUrl, [string]$downloadedApkPath, [string]$localApkPath) {
+function Write-ResultAndExit(
+  [string]$status,
+  [string]$modeUsed,
+  [string]$packLogPath,
+  [string]$downloadUrl,
+  [string]$downloadedApkPath,
+  [string]$localApkPath
+) {
   $result = [PSCustomObject]@{
-    status = $status
-    mode_used = $modeUsed
-    pack_log_path = $packLogPath
-    download_url = $downloadUrl
+    status              = $status
+    mode_used           = $modeUsed
+    pack_log_path       = $packLogPath
+    download_url        = $downloadUrl
     downloaded_apk_path = $downloadedApkPath
-    local_apk_path = $localApkPath
+    local_apk_path      = $localApkPath
   }
   $result | ConvertTo-Json -Depth 5
   if ($status -ne 'success') { exit 2 }
   exit 0
+}
+
+function Get-AppIdFromManifest {
+  $manifestPath = Join-Path $ProjectPath 'manifest.json'
+  $raw = Get-Content -LiteralPath $manifestPath -Raw
+  $m = [regex]::Match($raw, '"appid"\s*:\s*"([^"]+)"')
+  $appId = if ($m.Success) { $m.Groups[1].Value } else { '' }
+  if ([string]::IsNullOrWhiteSpace($appId)) {
+    throw "appid not found in manifest.json: $manifestPath"
+  }
+  return $appId
+}
+
+function Resolve-SourceWww([string]$appId, [datetime]$publishStartTime) {
+  $candidates = @(
+    (Join-Path $ProjectPath "unpackage\resources\$appId\www"),
+    (Join-Path $ProjectPath "unpackage\cache\wgt\$appId")
+  )
+
+  $available = @()
+  foreach ($c in $candidates) {
+    $appService = Join-Path $c 'app-service.js'
+    if (Test-Path -LiteralPath $appService) {
+      $item = Get-Item -LiteralPath $appService
+      $available += [PSCustomObject]@{
+        Root          = $c
+        AppService    = $appService
+        LastWriteTime = $item.LastWriteTime
+      }
+    }
+  }
+
+  if ($available.Count -eq 0) {
+    throw "App resource not found under expected paths for appid=$appId"
+  }
+
+  $fresh = $available |
+    Where-Object { $_.LastWriteTime -ge $publishStartTime.AddSeconds(-2) } |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1
+
+  $selected = if ($fresh) {
+    $fresh
+  }
+  else {
+    $available | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+  }
+
+  if (-not [string]::IsNullOrWhiteSpace($script:VerifyTag)) {
+    $match = Select-String -Path $selected.AppService -Pattern [regex]::Escape($script:VerifyTag) -SimpleMatch -ErrorAction SilentlyContinue
+    if (-not $match) {
+      throw "APK_VERIFY_TAG '$script:VerifyTag' not found in $($selected.AppService). Export may be stale."
+    }
+  }
+
+  return $selected.Root
 }
 
 function Invoke-CloudPack {
@@ -78,20 +159,20 @@ function Invoke-CloudPack {
 
   $status = if (($packOutput -join "`n") -match '打包成功') { 'success' } else { 'failed' }
   return [PSCustomObject]@{
-    status = $status
-    mode_used = 'cloud'
-    pack_log_path = $logPath
-    download_url = $downloadUrl
+    status              = $status
+    mode_used           = 'cloud'
+    pack_log_path       = $logPath
+    download_url        = $downloadUrl
     downloaded_apk_path = $downloadedApk
-    local_apk_path = $null
+    local_apk_path      = $null
   }
 }
 
 function Find-OfflineProjectFromExtracted {
   if (-not (Test-Path -LiteralPath $OfflineSdkExtractDir)) { return $null }
   $match = Get-ChildItem -Path $OfflineSdkExtractDir -Recurse -Directory -ErrorAction SilentlyContinue |
-    Where-Object { $_.Name -eq 'HBuilder-Integrate-AS' } |
-    Select-Object -First 1
+  Where-Object { $_.Name -eq 'HBuilder-Integrate-AS' } |
+  Select-Object -First 1
   if ($match) { return $match.FullName }
   return $null
 }
@@ -118,12 +199,19 @@ function Invoke-LocalPack {
   Ensure-OutputDir 'unpackage\release\apk\local'
   $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
   $logPath = Join-Path $OutputDir ("local-pack-$stamp.log")
+  $appId = Get-AppIdFromManifest
+  $publishStartTime = Get-Date
 
   $publishOutput = & $HBuilderXCli publish app-android --type appResource --project $ProjectPath 2>&1
   $publishOutput | Out-File -FilePath $logPath -Encoding utf8
   if ($LASTEXITCODE -ne 0) {
     return [PSCustomObject]@{
-      status = 'failed'; mode_used='local'; pack_log_path=$logPath; download_url=$null; downloaded_apk_path=$null; local_apk_path=$null
+      status              = 'failed'
+      mode_used           = 'local'
+      pack_log_path       = $logPath
+      download_url        = $null
+      downloaded_apk_path = $null
+      local_apk_path      = $null
     }
   }
 
@@ -131,25 +219,22 @@ function Invoke-LocalPack {
   $assetsApps = Join-Path $offlineProject 'simpleDemo\src\main\assets\apps'
   $controlXml = Join-Path $offlineProject 'simpleDemo\src\main\assets\data\dcloud_control.xml'
   $localProperties = Join-Path $offlineProject 'local.properties'
-  $sourceWww = Join-Path $ProjectPath 'unpackage\resources\__UNI__B41F254\www'
-
-  if (-not (Test-Path -LiteralPath $sourceWww)) {
-    throw "App resource not found: $sourceWww"
-  }
+  $sourceWww = Resolve-SourceWww -appId $appId -publishStartTime $publishStartTime
 
   if (Test-Path (Join-Path $assetsApps '__UNI__A')) {
     Remove-Item -Recurse -Force (Join-Path $assetsApps '__UNI__A')
   }
-  if (Test-Path (Join-Path $assetsApps '__UNI__B41F254')) {
-    Remove-Item -Recurse -Force (Join-Path $assetsApps '__UNI__B41F254')
+  if (Test-Path (Join-Path $assetsApps $appId)) {
+    Remove-Item -Recurse -Force (Join-Path $assetsApps $appId)
   }
-  New-Item -ItemType Directory -Force -Path (Join-Path $assetsApps '__UNI__B41F254') | Out-Null
-  Copy-Item -Recurse -Force $sourceWww (Join-Path $assetsApps '__UNI__B41F254\www')
+  $targetWww = Join-Path $assetsApps "$appId\www"
+  New-Item -ItemType Directory -Force -Path $targetWww | Out-Null
+  Copy-Item -Recurse -Force "$sourceWww\*" $targetWww
 
   @"
 <hbuilder>
 <apps>
-    <app appid="__UNI__B41F254" appver=""/>
+    <app appid="$appId" appver=""/>
 </apps>
 </hbuilder>
 "@ | Set-Content -Path $controlXml -Encoding utf8
@@ -166,16 +251,17 @@ sdk.dir=$($AndroidSdkDir -replace '\\','\\\\')
   $localApk = Join-Path $offlineProject 'simpleDemo\build\outputs\apk\release\simpleDemo-release.apk'
   $status = if (Test-Path -LiteralPath $localApk) { 'success' } else { 'failed' }
   return [PSCustomObject]@{
-    status = $status
-    mode_used = 'local'
-    pack_log_path = $logPath
-    download_url = $null
+    status              = $status
+    mode_used           = 'local'
+    pack_log_path       = $logPath
+    download_url        = $null
     downloaded_apk_path = $null
-    local_apk_path = $(if ($status -eq 'success') { $localApk } else { $null })
+    local_apk_path      = $(if ($status -eq 'success') { $localApk } else { $null })
   }
 }
 
 Ensure-BaseValidation
+$script:VerifyTag = Resolve-VerifyTag
 
 if ($Mode -eq 'local') {
   $r = Invoke-LocalPack
@@ -193,7 +279,8 @@ try {
   if ($localResult.status -eq 'success') {
     Write-ResultAndExit -status $localResult.status -modeUsed $localResult.mode_used -packLogPath $localResult.pack_log_path -downloadUrl $localResult.download_url -downloadedApkPath $localResult.downloaded_apk_path -localApkPath $localResult.local_apk_path
   }
-} catch {
+}
+catch {
   # fallback to cloud below
 }
 
