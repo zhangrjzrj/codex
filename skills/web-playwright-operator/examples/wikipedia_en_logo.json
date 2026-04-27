@@ -1,0 +1,14 @@
+{
+  "url": "https://www.wikipedia.org/",
+  "steps": [
+    { "type": "wait_network_idle" },
+    { "type": "screenshot", "path": "home.png", "full_page": true },
+    { "type": "click_role", "role": "link", "name": "English" },
+    { "type": "wait_network_idle" },
+    { "type": "extract_title", "name": "page_title" },
+    { "type": "extract_text", "name": "h1", "selector": "h1" },
+    { "type": "download_img", "name": "logo", "selector": "img[alt*='Wikipedia']" },
+    { "type": "screenshot", "path": "en.png", "full_page": true }
+  ]
+}
+

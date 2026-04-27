@@ -1,0 +1,15 @@
+{
+  "url": "https://www.baidu.com/",
+  "steps": [
+    { "type": "wait_network_idle" },
+    { "type": "wait_selector", "selector": "#kw", "state": "attached", "timeout_ms": 30000 },
+    {
+      "type": "eval",
+      "script": "var kw=document.querySelector('#kw'); if(kw){kw.value='GitHub'; kw.dispatchEvent(new Event('input',{bubbles:true}));} var su=document.querySelector('#su'); if(su){su.click();} else {var f=document.querySelector('form'); if(f) f.submit();}"
+    },
+    { "type": "wait_network_idle" },
+    { "type": "screenshot", "path": "results.png", "full_page": true },
+    { "type": "extract_title", "name": "page_title" }
+  ]
+}
+
