@@ -73,6 +73,15 @@ Supported step `type` values are implemented in `scripts/run_steps.py`.
 python skills/web-playwright-operator/scripts/login_once.py --url "https://example.com/login" --state auth_state.json
 ```
 
+### Login once (headful, no-stdin environments)
+
+If the terminal can't accept `input()` (common in automation), use a signal file:
+
+```powershell
+python skills/web-playwright-operator/scripts/login_once.py --url "https://example.com/login" --state auth_state.json --save-signal save.signal
+# After you finish login in the browser window, create save.signal (empty file is fine).
+```
+
 ### Run automation (headless)
 
 ```powershell
@@ -85,6 +94,14 @@ If no login is needed, omit `--state`.
 
 ```powershell
 python skills/web-playwright-operator/scripts/run_steps.py --spec steps.json --out skills/web-playwright-operator/out --headful
+```
+
+### Open and hold (headful)
+
+Keeps the browser open until you create `close.signal`:
+
+```powershell
+python skills/web-playwright-operator/scripts/open_hold.py --url "https://example.com" --state auth_state.json --close-signal close.signal
 ```
 
 ## Examples

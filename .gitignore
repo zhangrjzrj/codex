@@ -24,6 +24,13 @@ tmp/
 *.sqlite-wal
 history.jsonl
 
+# Python caches
+**/__pycache__/
+*.pyc
+
+# Skill run outputs (often large / transient)
+skills/**/out/
+
 # Local state cache
 cap_sid
 installation_id
