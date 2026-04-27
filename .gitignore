@@ -1,8 +1,12 @@
 ﻿# Secrets / auth
 auth.json
+auth.json.backup_*
 *.pem
 *.key
 *.token
+
+# Local config backups (noise)
+config.toml.backup_*
 
 # Runtime/session data
 sessions/
