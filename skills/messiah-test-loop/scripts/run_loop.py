@@ -571,7 +571,12 @@ def run_round(args, round_index: int) -> dict:
 
     try:
         print(f"[step] run={run_id} scenario={args.scenario} stop_point={args.stop_point}", flush=True)
+        effective_launch_bat = args.launch_bat
+        if str(getattr(args, "game_args", "")).strip():
+            effective_launch_bat = write_custom_launch_bat(run_dir, args.repo_root, args.game_args)
         print(f"[step] launch_bat_locked={args.launch_bat}", flush=True)
+        if effective_launch_bat != args.launch_bat:
+            print(f"[step] launch_bat_effective={effective_launch_bat}", flush=True)
         if args.do_build:
             result["phase_status"]["build"] = "running"
             print("[step] build started", flush=True)
@@ -604,7 +609,7 @@ def run_round(args, round_index: int) -> dict:
             result["phase_status"]["launch"] = "reused_running_client"
             print("[step] reuse running client", flush=True)
         else:
-            launch_exit = run_launch_bat(args.launch_bat, run_dir / "launch.log")
+            launch_exit = run_launch_bat(effective_launch_bat, run_dir / "launch.log")
             result["phase_status"]["launch"] = "success" if launch_exit == 0 else "success_with_warning"
             if args.launch_settle_sec > 0:
                 time.sleep(args.launch_settle_sec)
@@ -914,6 +919,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--build-configuration", default="Hybrid")
     parser.add_argument("--build-platform", default="x64")
     parser.add_argument("--launch-bat", default="")
+    parser.add_argument(
+        "--game-args",
+        default="",
+        help=(
+            "Override game launch arguments while keeping launch-bat locked. "
+            "When set, the runner generates a per-run launch .bat under artifacts and uses it to start the client."
+        ),
+    )
     parser.add_argument("--launch-settle-sec", type=int, default=12)
     parser.add_argument("--reuse-running-client", type=str2bool, default=False)
     parser.add_argument("--game-process-names", default="Game_x64h.exe,Game_x64r.exe")
@@ -975,6 +988,47 @@ def build_parser() -> argparse.ArgumentParser:
         default=(Path(__file__).resolve().parent / "in_game" / "auto_loop_operator.py"),
     )
     return parser
+
+
+def write_custom_launch_bat(run_dir: Path, repo_root: Path, game_args: str) -> Path:
+    """
+    Generate a per-run launch bat to avoid editing the locked project bat.
+    We keep behavior roughly aligned with the project's locked bat (RenderDoc enable best-effort).
+    """
+    game_args = str(game_args or "").strip()
+    if not game_args:
+        raise ValueError("game_args must be non-empty")
+
+    repo_root = repo_root.resolve()
+    cooked_client_dir = repo_root / "cooked_client" / "Client"
+    setup_hook_bat = cooked_client_dir / "shader_cache_hookers" / "setup_svn_hook.bat"
+    mod_plugins_py = cooked_client_dir / "mod_engine_plugins.py"
+    engine_bin_dir = repo_root / "Messiah" / "Engine" / "Binaries" / "Win64"
+    game_exe = engine_bin_dir / "Game_x64h.exe"
+
+    content = "\n".join(
+        [
+            "@echo off",
+            "setlocal EnableExtensions",
+            "",
+            "REM Enable RenderDoc plugin (best-effort)",
+            f'call "{setup_hook_bat}"',
+            f'pushd "{repo_root / "Messiah"}"',
+            f'python "{mod_plugins_py}" RenderDoc True',
+            "popd",
+            "",
+            f'cd /d "{engine_bin_dir}"',
+            "",
+            f'start \"\" \"{game_exe}\" {game_args}',
+            "",
+            "endlocal",
+            "",
+        ]
+    )
+
+    out_path = run_dir / "launch_custom.bat"
+    write_text(out_path, content)
+    return out_path
 
 
 def main() -> int:
