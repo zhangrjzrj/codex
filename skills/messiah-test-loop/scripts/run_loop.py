@@ -331,25 +331,12 @@ def wait_login_ready(
 
 
 def wait_login_ui_ready(driver: TelnetDriver, trace_path: Path, timeout_sec: int) -> dict:
-    deadline = time.time() + int(timeout_sec)
-    last_payload: dict = {}
-    while time.time() < deadline:
-        # Keep clearing blockers so the operator can see the login UI.
-        try_dismiss_trace_notice(driver, trace_path, {}, "wait_login_ui_ready")
-        try:
-            send_command(driver, trace_path, "_auto_loop_operator.dismiss_login_blockers()", timeout=8.0)
-        except Exception:
-            pass
-
-        remaining = max(5.0, min(30.0, deadline - time.time()))
-        cmd = f"_auto_loop_operator.wait_login_ui_ready({float(remaining)})"
-        payload = send_command(driver, trace_path, cmd, timeout=max(8.0, float(remaining) + 5.0))
-        last_payload = payload
-        require_ok(payload, "wait_login_ui_ready")
-        if payload.get("ready"):
-            return payload
-        time.sleep(1.0)
-    raise TimeoutError(f"login ui not ready after {timeout_sec}s, last={last_payload}")
+    cmd = f"_auto_loop_operator.wait_login_ui_ready({float(timeout_sec)})"
+    payload = send_command(driver, trace_path, cmd, timeout=max(8.0, float(timeout_sec) + 5.0))
+    require_ok(payload, "wait_login_ui_ready")
+    if not payload.get("ready"):
+        raise TimeoutError(f"login ui not ready after {timeout_sec}s, last={payload}")
+    return payload
 
 
 def trigger_login_via_ui(
@@ -457,23 +444,6 @@ def try_dismiss_trace_notice(
     except Exception as exc:
         result["trace_notice_last_action"] = f"{stage}:error_exception"
         result["key_logs"].append(f"dismiss_trace_notice exception at {stage}: {exc!r}")
-
-
-def try_dismiss_login_blockers(
-    driver: TelnetDriver,
-    trace_path: Path,
-    result: dict,
-    stage: str,
-) -> None:
-    try:
-        payload = send_command(driver, trace_path, "_auto_loop_operator.dismiss_login_blockers()", timeout=8.0)
-        if not payload.get("ok"):
-            return
-        result["login_blockers_last_stage"] = str(stage)
-        result["login_blockers_found_count"] = int(payload.get("found_count", 0))
-        result["login_blockers_dismissed_count"] = int(payload.get("dismissed_count", 0))
-    except Exception as exc:
-        result["key_logs"].append(f"dismiss_login_blockers exception at {stage}: {exc!r}")
 
 
 def wait_scenario_done(
@@ -738,41 +708,8 @@ def run_round(args, round_index: int) -> dict:
 
         result["phase_status"]["test"] = "running"
         try_dismiss_trace_notice(driver, trace_path, result, "before_start_scenario")
-
-        effective_scenario = args.scenario
-        if args.scenario == "cli_playback":
-            effective_scenario = "nbs_playback"
-        elif args.scenario == "cli_record":
-            effective_scenario = "aov_record"
-
-        if args.scenario in {"cli_playback", "cli_record"}:
-            payload = send_command(
-                driver,
-                trace_path,
-                (
-                    "_auto_loop_operator.set_nbs_play_args("
-                    f"{json.dumps(args.cli_montid)},"
-                    f"{json.dumps(args.cli_nbs)},"
-                    f"{int(args.cli_start)},"
-                    f"{int(args.cli_end)},"
-                    "None)"
-                ),
-                timeout=8.0,
-            )
-            require_ok(payload, "set_nbs_play_args")
-            result["nbs_cli"] = {
-                "enabled": True,
-                "montid": str(args.cli_montid or ""),
-                "nbs": str(args.cli_nbs or ""),
-                "start": int(args.cli_start),
-                "end": int(args.cli_end),
-                "mapped_scenario": effective_scenario,
-            }
-        else:
-            result["nbs_cli"] = {"enabled": False}
-
-        print(f"[step] start scenario {effective_scenario}", flush=True)
-        if effective_scenario == "nbs_playback" and args.capture_on_playback_start:
+        print(f"[step] start scenario {args.scenario}", flush=True)
+        if args.scenario == "nbs_playback" and args.capture_on_playback_start:
             if args.capture_target_frame > 0:
                 capture_target_mode = str(args.capture_target_mode)
                 capture_mode = "target_window" if capture_target_mode == "target_window" else "target_frame"
@@ -827,13 +764,11 @@ def run_round(args, round_index: int) -> dict:
                 result["renderdoc_capture_error"] = str(payload.get("error", "unknown"))
             require_ok(payload, "start_nbs_playback_with_capture")
         else:
-            if args.capture_on_playback_start and effective_scenario != "nbs_playback":
+            if args.capture_on_playback_start and args.scenario != "nbs_playback":
                 msg = "capture_on_playback_start ignored: scenario is not nbs_playback"
                 result["key_logs"].append(msg)
                 print(f"[step] {msg}", flush=True)
-            payload = send_command(
-                driver, trace_path, f"_auto_loop_operator.start_scenario('{effective_scenario}')", timeout=20.0
-            )
+            payload = send_command(driver, trace_path, f"_auto_loop_operator.start_scenario('{args.scenario}')", timeout=20.0)
             require_ok(payload, "start_scenario")
         scenario_done_payload = wait_scenario_done(
             driver,
@@ -842,7 +777,7 @@ def run_round(args, round_index: int) -> dict:
             args.game_process_names,
             args.abort_on_process_exit,
         )
-        if effective_scenario == "nbs_playback":
+        if args.scenario == "nbs_playback":
             result["renderdoc_capture_api"] = str(scenario_done_payload.get("capture_api", ""))
             try:
                 result["renderdoc_capture_trigger_frame"] = int(scenario_done_payload.get("capture_trigger_frame", 0) or 0)
@@ -976,7 +911,7 @@ def run_round(args, round_index: int) -> dict:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Messiah test loop orchestrator")
     parser.add_argument("--repo-root", type=Path, default=Path(os.environ.get("MESSIAH_REPO_ROOT", "E:/messiah_h74")))
-    parser.add_argument("--scenario", choices=["aov_record", "nbs_playback", "cli_playback", "cli_record"], required=True)
+    parser.add_argument("--scenario", choices=["aov_record", "nbs_playback"], required=True)
     parser.add_argument("--max-rounds", type=int, default=1)
     parser.add_argument("--do-build", type=str2bool, default=True)
     parser.add_argument("--build-script", type=Path, default=Path(r"C:/Users/zhangruojun/.codex/skills/messiah-ib-build-fix/scripts/invoke_ib_build.ps1"))
@@ -1002,10 +937,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--request-exit-on-finish", type=str2bool, default=False)
     parser.add_argument("--nbs-demo-path", default="")
-    parser.add_argument("--cli-montid", default="", help="Montage id for cli_playback/cli_record (overrides demo montID when supported).")
-    parser.add_argument("--cli-nbs", default="", help="NBS path for cli_playback (overrides demo nbsPath when supported).")
-    parser.add_argument("--cli-start", type=int, default=0, help="Start frame offset for cli_playback (sets frameStartCount when supported).")
-    parser.add_argument("--cli-end", type=int, default=0, help="End frame guard for cli_playback (wrap UpdateCB to stop at this frame). 0 disables.")
     parser.add_argument("--server-profile", default="")
     parser.add_argument("--space-type", type=int, default=2)
     parser.add_argument("--spaceno", type=int, default=98121)
@@ -1017,7 +948,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--timeout-connect", type=int, default=60)
     parser.add_argument("--connect-progress-sec", type=int, default=10)
     parser.add_argument("--timeout-login", type=int, default=300)
-    parser.add_argument("--timeout-login-ui", type=int, default=60)
+    parser.add_argument("--timeout-login-ui", type=int, default=10)
     parser.add_argument("--click-max-attempts", type=int, default=5)
     parser.add_argument("--click-interval-sec", type=float, default=0.5)
     parser.add_argument("--capture-on-playback-start", type=str2bool, default=False)
@@ -1110,16 +1041,6 @@ def main() -> int:
     args.h74_operator_script = resolve_h74_operator_script(args.repo_root, args.h74_operator_script)
     args.auto_operator_script = args.auto_operator_script.resolve()
     args.nbs_demo_path = resolve_nbs_demo_path(args.repo_root, args.nbs_demo_path)
-
-    if args.scenario == "cli_playback":
-        if not str(args.cli_montid).strip():
-            raise ValueError("--cli-montid is required for scenario=cli_playback")
-        if not str(args.cli_nbs).strip():
-            raise ValueError("--cli-nbs is required for scenario=cli_playback")
-    if args.scenario == "cli_record":
-        if not str(args.cli_montid).strip():
-            raise ValueError("--cli-montid is required for scenario=cli_record")
-
     args.analyze_rdc_script = args.analyze_rdc_script.resolve()
     args.analyze_rdc_path = Path(args.analyze_rdc_path).resolve() if str(args.analyze_rdc_path).strip() else None
     args.analyze_rdc_qrenderdoc_path = (

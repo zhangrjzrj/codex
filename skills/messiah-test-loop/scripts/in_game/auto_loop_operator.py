@@ -20,13 +20,6 @@ class AutoLoopOperator:
         self._scenario_state = None
         self._nbs_loaded_path = None
         self._nbs_script_env = None
-        self._nbs_play_args = {
-            "montid": None,
-            "nbs": None,
-            "start": None,
-            "end": None,
-            "use_audio_sync": None,
-        }
 
     def _emit(self, payload):
         print("AUTO_JSON::" + json.dumps(payload, ensure_ascii=False))
@@ -45,32 +38,6 @@ class AutoLoopOperator:
                 "reloaded_on_next_start": bool(self._nbs_loaded_path != path),
             }
         )
-
-    def set_nbs_play_args(self, montid=None, nbs=None, start=None, end=None, use_audio_sync=None):
-        try:
-            self._nbs_play_args = {
-                "montid": None if montid in ("", None) else str(montid),
-                "nbs": None if nbs in ("", None) else str(nbs),
-                "start": None if start in ("", None) else int(start),
-                "end": None if end in ("", None) else int(end),
-                "use_audio_sync": use_audio_sync,
-            }
-            self._emit(
-                {
-                    "ok": True,
-                    "action": "set_nbs_play_args",
-                    **self._nbs_play_args,
-                }
-            )
-        except Exception as exc:
-            self._emit(
-                {
-                    "ok": False,
-                    "action": "set_nbs_play_args",
-                    "error": repr(exc),
-                    "traceback": traceback.format_exc(),
-                }
-            )
 
     @classmethod
     def _dismiss_login_blockers_internal(cls):
@@ -611,81 +578,7 @@ class AutoLoopOperator:
                 raise RuntimeError("NBSTest_missing_in_demo_script")
             self._nbs_script_env = env
             self._nbs_loaded_path = self.nbs_demo_path
-        nbs_test = self._nbs_script_env["NBSTest"]()
-        self._apply_nbs_play_args(nbs_test)
-        return nbs_test
-
-    def _apply_nbs_play_args(self, nbs_test):
-        args = self._nbs_play_args or {}
-        montid = args.get("montid")
-        nbs = args.get("nbs")
-        start = args.get("start")
-        end = args.get("end")
-        use_audio_sync = args.get("use_audio_sync")
-
-        if montid is not None and hasattr(nbs_test, "montID"):
-            try:
-                nbs_test.montID = str(montid)
-            except Exception:
-                pass
-        if nbs is not None and hasattr(nbs_test, "nbsPath"):
-            try:
-                nbs_test.nbsPath = str(nbs)
-            except Exception:
-                pass
-        if start is not None and hasattr(nbs_test, "frameStartCount"):
-            try:
-                nbs_test.frameStartCount = int(start)
-            except Exception:
-                pass
-        if use_audio_sync is not None and hasattr(nbs_test, "use_audio_sync"):
-            try:
-                nbs_test.use_audio_sync = bool(use_audio_sync)
-            except Exception:
-                pass
-
-        self._install_end_frame_guard(nbs_test, end)
-
-    @staticmethod
-    def _install_end_frame_guard(nbs_test, end_frame):
-        if end_frame in (None, "", 0):
-            return
-        try:
-            end_frame = int(end_frame)
-        except Exception:
-            return
-
-        original_update_cb = getattr(nbs_test, "UpdateCB", None)
-        if original_update_cb is None:
-            return
-        if getattr(nbs_test, "_auto_end_frame_guard_installed", False):
-            return
-
-        nbs_test._auto_end_frame_guard_installed = True
-        nbs_test.__auto_end_frame = end_frame
-        nbs_test.__auto_end_triggered = False
-
-        def wrapped_update_cb(decoder_id, frame_count):
-            if getattr(nbs_test, "__auto_end_triggered", False):
-                return
-
-            try:
-                start_offset = int(getattr(nbs_test, "frameStartCount", 0) or 0)
-                absolute_frame = int(frame_count) + start_offset
-                if absolute_frame >= int(getattr(nbs_test, "__auto_end_frame", end_frame)):
-                    nbs_test.__auto_end_triggered = True
-                    for fn in ("stopMont", "stopNBS", "stop"):
-                        try:
-                            getattr(nbs_test, fn)()
-                        except Exception:
-                            pass
-                    return
-            except Exception:
-                pass
-
-            return original_update_cb(decoder_id, frame_count)
-
-        nbs_test.UpdateCB = wrapped_update_cb
+        return self._nbs_script_env["NBSTest"]()
 
     @staticmethod
     def _get_running_scene():
