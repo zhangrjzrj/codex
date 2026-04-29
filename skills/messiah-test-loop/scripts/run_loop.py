@@ -652,6 +652,21 @@ def run_round(args, round_index: int) -> dict:
             timeout=8.0,
         )
         require_ok(payload, "set_nbs_demo_path")
+
+        payload = send_command(
+            driver,
+            trace_path,
+            (
+                "_auto_loop_operator.set_nbs_run_args("
+                f"{json.dumps(args.montid)},"
+                f"{json.dumps(args.nbs)},"
+                f"{int(args.start)},"
+                f"{int(args.end)},"
+                "None)"
+            ),
+            timeout=8.0,
+        )
+        require_ok(payload, "set_nbs_run_args")
         if args.stop_point == "after_operator_load":
             return stop_here(result, "after_operator_load")
 
@@ -937,6 +952,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--request-exit-on-finish", type=str2bool, default=False)
     parser.add_argument("--nbs-demo-path", default="")
+    parser.add_argument("--montid", default="", help="Montage id to inject into NBSTest.montID when supported.")
+    parser.add_argument("--nbs", default="", help="NBS path to inject into NBSTest.nbsPath when supported.")
+    parser.add_argument("--start", type=int, default=0, help="Start frame offset to inject into NBSTest.frameStartCount when supported.")
+    parser.add_argument("--end", type=int, default=0, help="End frame guard (wrap UpdateCB to stop at this frame). 0 disables.")
     parser.add_argument("--server-profile", default="")
     parser.add_argument("--space-type", type=int, default=2)
     parser.add_argument("--spaceno", type=int, default=98121)
