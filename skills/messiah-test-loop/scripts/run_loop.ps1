@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("aov_record", "nbs_playback")]
+    [ValidateSet("aov_record", "nbs_playback", "cli_playback", "cli_record")]
     [string]$Scenario,
     [int]$MaxRounds = 1,
     [bool]$DoBuild = $true,
@@ -15,7 +15,7 @@ param(
     [ValidateSet("after_connect", "after_operator_load", "after_click_start", "after_login", "after_scenario")]
     [string]$StopPoint = "after_click_start",
     [int]$TimeoutConnect = 60,
-    [int]$TimeoutLoginUI = 10,
+    [int]$TimeoutLoginUI = 60,
     [int]$ClickMaxAttempts = 5,
     [double]$ClickIntervalSec = 0.5,
     [bool]$CaptureOnPlaybackStart = $false,
@@ -30,6 +30,10 @@ param(
     [bool]$AbortOnTraceNotice = $false,
     [bool]$AbortOnProcessExit = $true,
     [bool]$RequestExitOnFinish = $false,
+    [string]$CliMontId = "",
+    [string]$CliNbs = "",
+    [int]$CliStart = 0,
+    [int]$CliEnd = 0,
     [bool]$AnalyzeRdc = $false,
     [string]$AnalyzeRdcPath = "",
     [string]$AnalyzeRdcPassKeyword = "WaterPass",
@@ -85,6 +89,15 @@ $args = @(
     "--analyze-rdc-cb-neighbor-window", $AnalyzeRdcCbNeighborWindow,
     "--analyze-rdc-cb-nonzero-only", $AnalyzeRdcCbNonzeroOnly
 )
+
+if (-not [string]::IsNullOrWhiteSpace($CliMontId)) {
+    $args += @("--cli-montid", $CliMontId)
+}
+if (-not [string]::IsNullOrWhiteSpace($CliNbs)) {
+    $args += @("--cli-nbs", $CliNbs)
+}
+$args += @("--cli-start", $CliStart)
+$args += @("--cli-end", $CliEnd)
 
 if (-not [string]::IsNullOrWhiteSpace($ServerProfile)) {
     $args += @("--server-profile", $ServerProfile)
