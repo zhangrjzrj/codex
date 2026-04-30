@@ -15,7 +15,7 @@ param(
     [ValidateSet("after_connect", "after_operator_load", "after_click_start", "after_login", "after_scenario")]
     [string]$StopPoint = "after_click_start",
     [int]$TimeoutConnect = 60,
-    [int]$TimeoutLoginUI = 10,
+    [int]$TimeoutLoginUI = 360,
     [int]$ClickMaxAttempts = 5,
     [double]$ClickIntervalSec = 0.5,
     [bool]$CaptureOnPlaybackStart = $false,

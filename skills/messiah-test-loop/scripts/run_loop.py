@@ -967,7 +967,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--timeout-connect", type=int, default=60)
     parser.add_argument("--connect-progress-sec", type=int, default=10)
     parser.add_argument("--timeout-login", type=int, default=300)
-    parser.add_argument("--timeout-login-ui", type=int, default=10)
+    parser.add_argument("--timeout-login-ui", type=int, default=360)
     parser.add_argument("--click-max-attempts", type=int, default=5)
     parser.add_argument("--click-interval-sec", type=float, default=0.5)
     parser.add_argument("--capture-on-playback-start", type=str2bool, default=False)
