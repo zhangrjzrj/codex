@@ -349,10 +349,17 @@ def trigger_login_via_ui(
     result: dict,
 ) -> None:
     print("[step] wait login ui ready", flush=True)
-    payload = wait_login_ui_ready(driver, trace_path, timeout_login_ui)
-    result["login_ui_ready"] = bool(payload.get("ready"))
-    result["login_ui_type"] = payload.get("ui_type", "")
-    print(f"[step] login ui ready ui_type={result['login_ui_type']}", flush=True)
+    try:
+        payload = wait_login_ui_ready(driver, trace_path, timeout_login_ui)
+        result["login_ui_ready"] = bool(payload.get("ready"))
+        result["login_ui_type"] = payload.get("ui_type", "")
+        print(f"[step] login ui ready ui_type={result['login_ui_type']}", flush=True)
+    except TimeoutError as exc:
+        result["login_ui_ready"] = False
+        result["login_ui_type"] = ""
+        result["key_logs"].append(f"login_ui_not_found:{exc}")
+        print("[step] login ui not found, skip ui click", flush=True)
+        return
 
     if account:
         print("[step] set login account from cli", flush=True)

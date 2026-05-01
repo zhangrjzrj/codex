@@ -3,11 +3,11 @@
 # =========================
 # 可选: "codexzh" / "duckcoding"
 
-#model_provider = "codexzh"
-#model = "gpt-5.2"
+model_provider = "codexzh"
+model = "gpt-5.2"
 
-model_provider = "duckcoding"
-model = "gpt-5.3-codex"
+#model_provider = "duckcoding"
+#model = "gpt-5.3-codex"
 
 model_reasoning_effort = "low"
 
