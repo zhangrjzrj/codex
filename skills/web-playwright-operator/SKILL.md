@@ -104,6 +104,31 @@ Keeps the browser open until you create `close.signal`:
 python skills/web-playwright-operator/scripts/open_hold.py --url "https://example.com" --state auth_state.json --close-signal close.signal
 ```
 
+### Persistent session (manual browse + later read)
+
+Start a reusable browser session (you can click manually in this window):
+
+```powershell
+python skills/web-playwright-operator/scripts/session_start.py --url "https://help.aliyun.com/zh/isi/"
+```
+
+Read current active page from that same session (title/url/text/screenshot):
+
+```powershell
+python skills/web-playwright-operator/scripts/session_read.py
+```
+
+Stop and clean session:
+
+```powershell
+python skills/web-playwright-operator/scripts/session_stop.py
+```
+
+Artifacts are written to:
+- `skills/web-playwright-operator/out/session/current.png`
+- `skills/web-playwright-operator/out/session/current.txt`
+- `skills/web-playwright-operator/out/session/current.json`
+
 ## Examples
 
 - `skills/web-playwright-operator/examples/wikipedia_en_logo.json`
