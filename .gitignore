@@ -31,6 +31,13 @@ history.jsonl
 # Skill run outputs (often large / transient)
 skills/**/out/
 
+# Generated system skills and browser runtime profiles
+skills/.system/
+browser-profiles/
+
+# Local hook configuration
+hooks.json
+
 # Local state cache
 cap_sid
 installation_id
