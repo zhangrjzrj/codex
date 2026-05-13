@@ -1,3 +1,0 @@
-@echo off
-call "d:\Program Files\Microsoft Visual Studio\2022\Community\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64 >nul
-cl /nologo /MD /EHsc /std:c++17 /I "E:\messiah_h74\Encoder\NBSEncoder\source\library\openexr\include" "C:\Users\zhangruojun\.codex\skills\messiah-exr-header-reader\scripts\.cache\probe.cpp" /link /LIBPATH:"E:\messiah_h74\Encoder\NBSEncoder\source\library\openexr\lib\release" /DEFAULTLIB:legacy_stdio_definitions.lib IlmImf-2_4.lib Iex-2_4.lib IlmThread-2_4.lib Imath-2_4.lib Half-2_4.lib zlibstatic.lib /OUT:"C:\Users\zhangruojun\.codex\skills\messiah-exr-header-reader\scripts\.cache\probe.exe"

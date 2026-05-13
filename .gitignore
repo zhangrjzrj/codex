@@ -30,6 +30,7 @@ history.jsonl
 
 # Skill run outputs (often large / transient)
 skills/**/out/
+skills/**/.cache/
 
 # Generated system skills and browser runtime profiles
 skills/.system/
@@ -41,6 +42,7 @@ hooks.json
 # Local state cache
 cap_sid
 installation_id
+version.json
 state_*.sqlite*
 logs_*.sqlite*
 
