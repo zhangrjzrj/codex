@@ -1,0 +1,4 @@
+interface:
+  display_name: "Browser Session"
+  short_description: "Inspect and control live browser pages"
+  default_prompt: "Use a persistent browser session, inspect the live DOM semantic snapshot, and operate the page with structured actions."
