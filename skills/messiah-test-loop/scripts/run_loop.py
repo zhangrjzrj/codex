@@ -357,7 +357,7 @@ def trigger_login_via_ui(
     except TimeoutError as exc:
         result["login_ui_ready"] = False
         result["login_ui_type"] = ""
-        result["key_logs"].append(f"login_ui_not_found:{exc}")
+        result["login_ui_not_found_reason"] = str(exc)
         print("[step] login ui not found, skip ui click", flush=True)
         return
 
@@ -1090,9 +1090,11 @@ def main() -> int:
     locked_bat = resolve_locked_launch_bat(args.repo_root)
     if args.launch_bat:
         requested_bat = Path(args.launch_bat).resolve()
-        if requested_bat != locked_bat:
-            raise ValueError(f"launch-bat is locked to {locked_bat}, got {requested_bat}")
-    args.launch_bat = locked_bat
+        if not requested_bat.exists():
+            raise ValueError(f"launch-bat not found: {requested_bat}")
+        args.launch_bat = requested_bat
+    else:
+        args.launch_bat = locked_bat
 
     ensure_dir(args.artifacts_root)
 
