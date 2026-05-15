@@ -20,6 +20,10 @@ def build_parser() -> argparse.ArgumentParser:
         default=Path(r"C:\Users\zhangruojun\.codex\skills\messiah-test-loop\scripts\in_game\auto_loop_operator.py"),
     )
     parser.add_argument("--demo-path", type=Path, required=True)
+    parser.add_argument("--montid", default="")
+    parser.add_argument("--nbs", default="")
+    parser.add_argument("--aspect-width", type=float, default=0.0)
+    parser.add_argument("--aspect-height", type=float, default=0.0)
     parser.add_argument("--poll-interval-sec", type=float, default=2.0)
     parser.add_argument("--max-polls", type=int, default=40)
     return parser
@@ -53,6 +57,15 @@ def main() -> int:
                     break
                 time.sleep(2.0)
         send(driver, f"_auto_loop_operator.set_nbs_demo_path(r'{args.demo_path.resolve().as_posix()}')", timeout=8.0)
+        send(
+            driver,
+            "_auto_loop_operator.set_nbs_run_args("
+            f"montid={json.dumps(args.montid)},"
+            f"nbs={json.dumps(args.nbs)},"
+            f"aspect_width={float(args.aspect_width)},"
+            f"aspect_height={float(args.aspect_height)})",
+            timeout=8.0,
+        )
         start_payload = send(driver, "_auto_loop_operator.start_scenario('nbs_playback')", timeout=20.0)
         final_payload = start_payload
         success_seen = False

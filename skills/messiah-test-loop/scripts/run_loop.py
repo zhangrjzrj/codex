@@ -669,7 +669,9 @@ def run_round(args, round_index: int) -> dict:
                 f"{json.dumps(args.nbs)},"
                 f"{int(args.start)},"
                 f"{int(args.end)},"
-                "None)"
+                "None,"
+                f"{float(args.aspect_width)},"
+                f"{float(args.aspect_height)})"
             ),
             timeout=8.0,
         )
@@ -963,6 +965,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--nbs", default="", help="NBS path to inject into NBSTest.nbsPath when supported.")
     parser.add_argument("--start", type=int, default=0, help="Start frame offset to inject into NBSTest.frameStartCount when supported.")
     parser.add_argument("--end", type=int, default=0, help="End frame guard (wrap UpdateCB to stop at this frame). 0 disables.")
+    parser.add_argument("--aspect-width", type=float, default=0.0, help="Optional NBS SetAspect width unit. 0 keeps demo default.")
+    parser.add_argument("--aspect-height", type=float, default=0.0, help="Optional NBS SetAspect height unit. 0 keeps demo default.")
     parser.add_argument("--server-profile", default="")
     parser.add_argument("--space-type", type=int, default=2)
     parser.add_argument("--spaceno", type=int, default=98121)

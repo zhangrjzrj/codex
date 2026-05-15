@@ -26,6 +26,8 @@ class AutoLoopOperator:
             "start": None,
             "end": None,
             "use_audio_sync": None,
+            "aspect_width": None,
+            "aspect_height": None,
         }
 
     def _emit(self, payload):
@@ -46,7 +48,7 @@ class AutoLoopOperator:
             }
         )
 
-    def set_nbs_run_args(self, montid=None, nbs=None, start=None, end=None, use_audio_sync=None):
+    def set_nbs_run_args(self, montid=None, nbs=None, start=None, end=None, use_audio_sync=None, aspect_width=None, aspect_height=None):
         try:
             self._nbs_run_args = {
                 "montid": None if montid in ("", None) else str(montid),
@@ -54,6 +56,8 @@ class AutoLoopOperator:
                 "start": None if start in ("", None) else int(start),
                 "end": None if end in ("", None) else int(end),
                 "use_audio_sync": use_audio_sync,
+                "aspect_width": None if aspect_width in ("", None, 0, 0.0) else float(aspect_width),
+                "aspect_height": None if aspect_height in ("", None, 0, 0.0) else float(aspect_height),
             }
             self._emit(
                 {
@@ -622,6 +626,8 @@ class AutoLoopOperator:
         start = args.get("start")
         end = args.get("end")
         use_audio_sync = args.get("use_audio_sync")
+        aspect_width = args.get("aspect_width")
+        aspect_height = args.get("aspect_height")
 
         if montid is not None and hasattr(nbs_test, "montID"):
             try:
@@ -644,7 +650,42 @@ class AutoLoopOperator:
             except Exception:
                 pass
 
+        self._install_aspect_override(nbs_test, aspect_width, aspect_height)
         self._install_end_frame_guard(nbs_test, end)
+
+    @staticmethod
+    def _install_aspect_override(nbs_test, aspect_width, aspect_height):
+        if aspect_width in (None, "", 0, 0.0) or aspect_height in (None, "", 0, 0.0):
+            return
+        try:
+            aspect_width = float(aspect_width)
+            aspect_height = float(aspect_height)
+        except Exception:
+            return
+        if aspect_width <= 0.0 or aspect_height <= 0.0:
+            return
+
+        original_create_cb = getattr(nbs_test, "createCB", None)
+        if original_create_cb is None:
+            return
+        if getattr(nbs_test, "_auto_aspect_override_installed", False):
+            return
+
+        nbs_test._auto_aspect_override_installed = True
+        nbs_test._auto_aspect_width = aspect_width
+        nbs_test._auto_aspect_height = aspect_height
+
+        def wrapped_create_cb(decoder_id):
+            ret = original_create_cb(decoder_id)
+            try:
+                import MNBSDecoder
+
+                MNBSDecoder.SetAspect(decoder_id, nbs_test._auto_aspect_width, nbs_test._auto_aspect_height)
+            except Exception:
+                pass
+            return ret
+
+        nbs_test.createCB = wrapped_create_cb
 
     @staticmethod
     def _install_end_frame_guard(nbs_test, end_frame):
