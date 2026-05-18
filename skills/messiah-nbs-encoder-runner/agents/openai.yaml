@@ -1,0 +1,4 @@
+interface:
+  display_name: "Messiah NBS Encoder Runner"
+  short_description: "Build and run the local NBSEncoder workflow."
+  default_prompt: "Build NBSEncoder and run encoding from the GUI config workspace."
