@@ -1,4 +1,4 @@
 interface:
   display_name: "Messiah Telnet Control"
-  short_description: "Connect and control a running Messiah client via Telnet"
-  default_prompt: "Use $messiah-telnet-control to connect to a running Messiah client, send Telnet Python commands, and trigger direct playback."
+  short_description: "Control a running Messiah client via Telnet, including NBS playback and window sizing"
+  default_prompt: "Use $messiah-telnet-control to connect to a running Messiah client, send Telnet Python commands, set window resolution, and trigger direct playback."
