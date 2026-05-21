@@ -16,8 +16,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--load-script", type=Path, default=None)
     parser.add_argument("--load-success-text", default="Load Auto Loop Operator Success")
     parser.add_argument("--command", action="append", default=[])
+    parser.add_argument("--raw-command", action="store_true", help="Send --command exactly as provided instead of wrapping it in exec(...).")
     parser.add_argument("--timeout-sec", type=float, default=20.0)
     return parser
+
+
+def prepare_command(command: str, raw: bool = False) -> str:
+    if raw:
+        return command
+    return "exec({})".format(json.dumps(str(command), ensure_ascii=False))
 
 
 def main() -> int:
@@ -30,9 +37,10 @@ def main() -> int:
             out = driver.load_script(args.load_script, args.load_success_text, timeout=max(10.0, args.timeout_sec))
             print(json.dumps({"loaded_script": str(args.load_script), "output_tail": out[-400:]}, ensure_ascii=False))
         for command in args.command:
-            out = driver.command(command, timeout=args.timeout_sec, accept_auto_json=True)
+            sent_command = prepare_command(command, raw=args.raw_command)
+            out = driver.command(sent_command, timeout=args.timeout_sec, accept_auto_json=True)
             payload = parse_auto_json(out)
-            print(json.dumps({"command": command, "payload": payload, "output_tail": out[-600:]}, ensure_ascii=False))
+            print(json.dumps({"command": command, "sent_command": sent_command, "payload": payload, "output_tail": out[-600:]}, ensure_ascii=False))
         return 0
     finally:
         driver.close()

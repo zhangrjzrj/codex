@@ -22,6 +22,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--demo-path", type=Path, required=True)
     parser.add_argument("--montid", default="")
     parser.add_argument("--nbs", default="")
+    parser.add_argument("--start", type=int, default=0)
+    parser.add_argument("--end", type=int, default=0)
+    parser.add_argument("--pause-frame", type=int, default=0)
+    parser.add_argument("--disable-mont-media", dest="disable_mont_media", action="store_true", default=True)
+    parser.add_argument("--enable-mont-media", dest="disable_mont_media", action="store_false")
     parser.add_argument("--aspect-width", type=float, default=0.0)
     parser.add_argument("--aspect-height", type=float, default=0.0)
     parser.add_argument("--poll-interval-sec", type=float, default=2.0)
@@ -62,6 +67,10 @@ def main() -> int:
             "_auto_loop_operator.set_nbs_run_args("
             f"montid={json.dumps(args.montid)},"
             f"nbs={json.dumps(args.nbs)},"
+            f"start={int(args.start)},"
+            f"end={int(args.end)},"
+            f"pause_frame={int(args.pause_frame)},"
+            f"disable_mont_media={bool(args.disable_mont_media)},"
             f"aspect_width={float(args.aspect_width)},"
             f"aspect_height={float(args.aspect_height)})",
             timeout=8.0,

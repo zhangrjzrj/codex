@@ -25,6 +25,8 @@ class AutoLoopOperator:
             "nbs": None,
             "start": None,
             "end": None,
+            "pause_frame": None,
+            "disable_mont_media": True,
             "use_audio_sync": None,
             "aspect_width": None,
             "aspect_height": None,
@@ -33,6 +35,20 @@ class AutoLoopOperator:
     def _emit(self, payload):
         print("AUTO_JSON::" + json.dumps(payload, ensure_ascii=False))
         print("AUTO_END")
+
+    @staticmethod
+    def _parse_bool(value, default=None):
+        if value is None:
+            return default
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            text = value.strip().lower()
+            if text in ("1", "true", "yes", "y", "on"):
+                return True
+            if text in ("0", "false", "no", "n", "off", ""):
+                return False
+        return bool(value)
 
     def ping(self):
         self._emit({"ok": True, "action": "ping"})
@@ -48,13 +64,15 @@ class AutoLoopOperator:
             }
         )
 
-    def set_nbs_run_args(self, montid=None, nbs=None, start=None, end=None, use_audio_sync=None, aspect_width=None, aspect_height=None):
+    def set_nbs_run_args(self, montid=None, nbs=None, start=None, end=None, pause_frame=None, disable_mont_media=True, use_audio_sync=None, aspect_width=None, aspect_height=None):
         try:
             self._nbs_run_args = {
                 "montid": None if montid in ("", None) else str(montid),
                 "nbs": None if nbs in ("", None) else str(nbs),
                 "start": None if start in ("", None) else int(start),
                 "end": None if end in ("", None) else int(end),
+                "pause_frame": None if pause_frame in ("", None, 0, 0.0) else int(pause_frame),
+                "disable_mont_media": self._parse_bool(disable_mont_media, default=True),
                 "use_audio_sync": use_audio_sync,
                 "aspect_width": None if aspect_width in ("", None, 0, 0.0) else float(aspect_width),
                 "aspect_height": None if aspect_height in ("", None, 0, 0.0) else float(aspect_height),
@@ -625,6 +643,8 @@ class AutoLoopOperator:
         nbs = args.get("nbs")
         start = args.get("start")
         end = args.get("end")
+        pause_frame = args.get("pause_frame")
+        disable_mont_media = args.get("disable_mont_media")
         use_audio_sync = args.get("use_audio_sync")
         aspect_width = args.get("aspect_width")
         aspect_height = args.get("aspect_height")
@@ -649,8 +669,14 @@ class AutoLoopOperator:
                 nbs_test.use_audio_sync = bool(use_audio_sync)
             except Exception:
                 pass
+        if disable_mont_media is not None:
+            try:
+                nbs_test.disable_mont_media = self._parse_bool(disable_mont_media, default=True)
+            except Exception:
+                pass
 
         self._install_aspect_override(nbs_test, aspect_width, aspect_height)
+        self._install_pause_frame_guard(nbs_test, pause_frame)
         self._install_end_frame_guard(nbs_test, end)
 
     @staticmethod
@@ -686,6 +712,21 @@ class AutoLoopOperator:
             return ret
 
         nbs_test.createCB = wrapped_create_cb
+
+    @staticmethod
+    def _install_pause_frame_guard(nbs_test, pause_frame):
+        if pause_frame in (None, "", 0, 0.0):
+            return
+        try:
+            pause_frame = int(pause_frame)
+        except Exception:
+            return
+        if not hasattr(nbs_test, "pauseAtFrame"):
+            return
+        try:
+            nbs_test.pauseAtFrame(pause_frame)
+        except Exception:
+            pass
 
     @staticmethod
     def _install_end_frame_guard(nbs_test, end_frame):
@@ -896,6 +937,44 @@ class AutoLoopOperator:
                     "action": "start_scenario",
                     "scenario": scenario,
                     "status": "failed",
+                    "error": repr(exc),
+                    "traceback": traceback.format_exc(),
+                }
+            )
+
+    def stop_scenario(self):
+        try:
+            scenario = ""
+            stopped = []
+            errors = {}
+            if self._scenario_state:
+                scenario = str(self._scenario_state.get("name", ""))
+                obj = self._scenario_state.get("obj")
+                if obj is not None:
+                    for fn in ("restoreMontMediaPlayback", "stopMont", "stopNBS", "stop"):
+                        if not hasattr(obj, fn):
+                            continue
+                        try:
+                            getattr(obj, fn)()
+                            stopped.append(fn)
+                        except Exception as exc:
+                            errors[fn] = repr(exc)
+            self._scenario_state = None
+            self._emit(
+                {
+                    "ok": True,
+                    "action": "stop_scenario",
+                    "scenario": scenario,
+                    "stopped": stopped,
+                    "errors": errors,
+                }
+            )
+        except Exception as exc:
+            self._scenario_state = None
+            self._emit(
+                {
+                    "ok": False,
+                    "action": "stop_scenario",
                     "error": repr(exc),
                     "traceback": traceback.format_exc(),
                 }
