@@ -22,7 +22,7 @@ cache_size_mb = 512
 cache_ttl = "30m"
 smart_cache = true
 cache_compression = true
-notify = ["python", "F:\\messiah_h74\\codex-notify.py"]
+notify = ["python", "C:\\Users\\zhangruojun\\.codex\\codex-notify.py"]
 approvals_reviewer = "user"
 personality = "pragmatic"
 
