@@ -36,9 +36,6 @@ skills/**/.cache/
 skills/.system/
 browser-profiles/
 
-# Local hook configuration
-hooks.json
-
 # Local state cache
 cap_sid
 installation_id

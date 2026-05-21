@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Codex 任务完成通知：用 Python 接 Codex 的 argv JSON，再发 Windows 通知。
 当 Codex 在无桌面会话中调用本脚本时，同进程的 toast/MessageBox 不会出现，
@@ -37,8 +37,18 @@ def log(msg: str) -> None:
         pass
 
 
+def _extract_json_string_field(raw: str, field: str):
+    m = re.search(r'"' + re.escape(field) + r'"\s*:\s*"((?:\\.|[^"\\])*)"', raw, re.DOTALL)
+    if not m:
+        return None
+    try:
+        return json.loads('"' + m.group(1) + '"')
+    except Exception:
+        return m.group(1)
+
+
 def parse_notification(raw: str):
-    """先试 JSON，失败则兼容引号被吃掉的 {type:xxx,last-assistant-message:xxx}。"""
+    """Parse Codex notify argv. Fall back to a basic completion notice if JSON is malformed."""
     raw = raw.strip()
     if raw.startswith("\ufeff"):
         raw = raw[1:]
@@ -49,15 +59,17 @@ def parse_notification(raw: str):
         raw = raw.replace(a, b)
     try:
         return json.loads(raw)
-    except json.JSONDecodeError:
-        pass
+    except json.JSONDecodeError as exc:
+        log(f"json parse failed: {exc}")
     if raw.startswith("{") and "type:agent-turn-complete" in raw and "last-assistant-message:" in raw:
         m = re.search(r"last-assistant-message:(.+)$", raw, re.DOTALL)
         if m:
             msg = m.group(1).strip().rstrip("}").strip()
             return {"type": "agent-turn-complete", "last-assistant-message": msg}
+    if "agent-turn-complete" in raw:
+        msg = _extract_json_string_field(raw, "last-assistant-message") or "Turn complete."
+        return {"type": "agent-turn-complete", "last-assistant-message": msg}
     return None
-
 
 def show_toast_win11(title: str, message: str) -> bool:
     try:
@@ -180,3 +192,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
