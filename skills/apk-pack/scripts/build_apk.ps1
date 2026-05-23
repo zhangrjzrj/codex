@@ -82,6 +82,46 @@ function Get-AppIdFromManifest {
   return $appId
 }
 
+function Invoke-UniAppCliExport([string]$appId, [string]$logPath) {
+  $hbuilderRoot = Split-Path -Parent $HBuilderXCli
+  $nodeExe = Join-Path $hbuilderRoot 'plugins\node\node.exe'
+  $uniCli = Join-Path $hbuilderRoot 'plugins\uniapp-cli\bin\uniapp-cli.js'
+  if (-not (Test-Path -LiteralPath $nodeExe)) {
+    throw "HBuilderX node not found: $nodeExe"
+  }
+  if (-not (Test-Path -LiteralPath $uniCli)) {
+    throw "uniapp-cli not found: $uniCli"
+  }
+
+  $distRoot = Join-Path $ProjectPath 'unpackage\dist\build\app-plus'
+  $resourceWww = Join-Path $ProjectPath "unpackage\resources\$appId\www"
+  $distService = Join-Path $distRoot 'app-service.js'
+  $distView = Join-Path $distRoot 'app-view.js'
+
+  $env:UNI_INPUT_DIR = $ProjectPath
+  $env:UNI_OUTPUT_DIR = $distRoot
+  $env:UNI_PLATFORM = 'app-plus'
+  $env:NODE_ENV = 'production'
+  $env:UNI_MINIMIZE = 'true'
+  Remove-Item Env:\VUE_CLI_CONTEXT -ErrorAction SilentlyContinue
+
+  $process = Start-Process -FilePath $nodeExe -ArgumentList @($uniCli) -WorkingDirectory (Join-Path $hbuilderRoot 'plugins\uniapp-cli') -NoNewWindow -PassThru -Wait
+  "uniapp-cli exit code: $($process.ExitCode)" | Out-File -FilePath $logPath -Encoding utf8 -Append
+  if ($process.ExitCode -ne 0) {
+    throw "uniapp-cli compile failed, exit=$($process.ExitCode)"
+  }
+  if (-not (Test-Path -LiteralPath $distService) -and -not (Test-Path -LiteralPath $distView)) {
+    throw "compiled app-plus resources missing under: $distRoot"
+  }
+
+  New-Item -ItemType Directory -Force -Path $resourceWww | Out-Null
+  robocopy $distRoot $resourceWww /MIR /NFL /NDL /NJH /NJS /NP | Out-Null
+  if ($LASTEXITCODE -ge 8) {
+    throw "robocopy compiled resources failed, exit=$LASTEXITCODE"
+  }
+  return $resourceWww
+}
+
 function Resolve-SourceWww([string]$appId, [datetime]$publishStartTime) {
   $candidates = @(
     (Join-Path $ProjectPath "unpackage\resources\$appId\www"),
@@ -118,9 +158,11 @@ function Resolve-SourceWww([string]$appId, [datetime]$publishStartTime) {
   }
 
   if (-not [string]::IsNullOrWhiteSpace($script:VerifyTag)) {
-    $match = Select-String -Path $selected.AppService -Pattern [regex]::Escape($script:VerifyTag) -SimpleMatch -ErrorAction SilentlyContinue
+    $match = Get-ChildItem -Path $selected.Root -Recurse -File -ErrorAction SilentlyContinue |
+      Select-String -Pattern $script:VerifyTag -SimpleMatch -ErrorAction SilentlyContinue |
+      Select-Object -First 1
     if (-not $match) {
-      throw "APK_VERIFY_TAG '$script:VerifyTag' not found in $($selected.AppService). Export may be stale."
+      throw "APK_VERIFY_TAG '$script:VerifyTag' not found under $($selected.Root). Export may be stale."
     }
   }
 
@@ -202,9 +244,11 @@ function Invoke-LocalPack {
   $appId = Get-AppIdFromManifest
   $publishStartTime = Get-Date
 
-  $publishOutput = & $HBuilderXCli publish app-android --type appResource --project $ProjectPath 2>&1
-  $publishOutput | Out-File -FilePath $logPath -Encoding utf8
-  if ($LASTEXITCODE -ne 0) {
+  try {
+    Invoke-UniAppCliExport -appId $appId -logPath $logPath | Out-Null
+  }
+  catch {
+    $_ | Out-File -FilePath $logPath -Encoding utf8 -Append
     return [PSCustomObject]@{
       status              = 'failed'
       mode_used           = 'local'

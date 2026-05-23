@@ -13,7 +13,8 @@ Default strategy is local offline packaging to avoid cloud daily limits.
 ## Modes
 
 - `local` (default):
-  - `publish app-android --type appResource`
+  - compile app-plus resources with HBuilderX bundled `plugins\node\node.exe` + `plugins\uniapp-cli\bin\uniapp-cli.js`
+  - sync compiled resources into `unpackage\resources\<appid>\www`
   - inject resources into offline project (`HBuilder-Integrate-AS`)
   - `gradlew :simpleDemo:assembleRelease`
 - `cloud`:
@@ -42,12 +43,16 @@ Default strategy is local offline packaging to avoid cloud daily limits.
 - `offline_sdk_zip_path` (optional): offline SDK zip; script can auto-extract
 - `android_sdk_dir` (optional): default `D:\AndroidSDK`
 - `hbuilderx_cli` (optional): default `D:\hanhan\HBuilderX\cli.exe`
+  - local mode derives HBuilderX root from this path and does not use `cli.exe publish appResource`, because that path has been verified unreliable for this project.
 
 ## Script
 
 ```powershell
 # Local first
 powershell -ExecutionPolicy Bypass -File scripts/build_apk.ps1 -ProjectPath "D:\hanhan\app" -PackageName "com.chaoweisuanli.duomilu" -Mode local
+
+# For D:\hanhan\app daily one-shot export, package, install, and launch, prefer the project script:
+powershell -ExecutionPolicy Bypass -File "D:\hanhan\app\scripts\export_pack_install.ps1" -VerifyText "登录" -CleanBeforeBuild
 
 # Local with strict export verification tag (recommended)
 Set-Content -Path "D:\hanhan\app\.apk_verify_tag" -Value "SKY_TAG_20260426_01" -Encoding ascii
