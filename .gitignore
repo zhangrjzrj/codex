@@ -35,6 +35,9 @@ skills/**/.cache/
 # Generated system skills and browser runtime profiles
 skills/.system/
 browser-profiles/
+skills/web-playwright-operator/session_state.json
+skills/web-playwright-operator/tmp-*.json
+skills/web-playwright-operator/user-data/
 
 # Local state cache
 cap_sid
