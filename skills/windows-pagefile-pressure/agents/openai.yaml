@@ -1,0 +1,4 @@
+interface:
+  display_name: "Windows Pagefile Pressure"
+  short_description: "Controlled commit and pagefile stress."
+  default_prompt: "Use this skill to run a controlled Windows commit/pagefile pressure workflow, verify pagefile growth, or reproduce pagefile expansion failure."
