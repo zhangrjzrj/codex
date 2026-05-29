@@ -1,6 +1,6 @@
 ---
 name: codex-session-continuity
-description: Checkpoint and resume Codex project work across context compaction, MCP refreshes, Codex restarts, parallel Codex sessions, or handoff to a fresh session. Use when the user asks to restart Codex, refresh MCP, reduce context, save a breakpoint, continue in a new Codex, recover the current task, or avoid relying on `codex resume --last`.
+description: "Checkpoint and resume Codex project work across context compaction, MCP refreshes, restarts, or handoff to a fresh session."
 ---
 
 # Codex Session Continuity
