@@ -29,6 +29,16 @@ Prefer this skill over one-shot browser automation when the task requires login 
    - Use `scripts/read_page.py` for page text and optional HTML.
    - Use screenshots only when DOM text is empty, canvas/PDF/image content is involved, or visual layout must be verified.
 
+## Login-Heavy Sites
+
+For sites with Google OAuth, captcha, SSO, or strict browser checks, prefer launching normal Chrome with a dedicated profile and a CDP port instead of Chrome for Testing:
+
+```powershell
+Start-Process -FilePath "C:\Program Files\Google\Chrome\Application\chrome.exe" -ArgumentList @("--remote-debugging-port=9222", "--user-data-dir=D:\hanhan\chrome-figma-profile", "https://www.figma.com/files/") -WindowStyle Normal
+```
+
+Then ask the user to complete login in that visible Chrome window. After login, attach with the regular `--port 9222` scripts. This preserves login state and avoids OAuth popup failures that can happen in automation-first browsers.
+
 ## Commands
 
 Open a persistent browser session:
