@@ -1,6 +1,6 @@
 ---
 name: sublime-file-opener
-description: Open a user-named local file in Sublime Text. Use when the user asks to open a specific file in an editor, including Chinese requests equivalent to "use editor to open this file", "open with Sublime Text", "open xx file", or when they want the file opened instead of printed.
+description: "Open a user-named local file in Sublime Text. Use when the user asks to open a specific file in an editor, including Chinese requests equivalent to 'use editor to open this file', 'open with Sublime Text', 'open xx file', or when they want the file opened instead of printed."
 ---
 
 # Sublime File Opener
