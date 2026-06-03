@@ -1,0 +1,4 @@
+interface:
+  display_name: "Beyond Compare Opener"
+  short_description: "Open two files or folders in Beyond Compare."
+  default_prompt: "Use Beyond Compare to compare the two paths I name."

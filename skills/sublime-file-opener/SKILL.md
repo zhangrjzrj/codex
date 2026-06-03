@@ -18,7 +18,9 @@ description: "Open a user-named local file in Sublime Text. Use when the user as
 
 3. Open the file with Sublime Text.
    - Prefer `subl` if available on `PATH`.
+   - If `subl` is unavailable, try `sublime_text` on `PATH`.
    - Otherwise try common Windows install paths such as:
+     - `D:\Program Files\Sublime Text\sublime_text.exe`
      - `C:\Program Files\Sublime Text\sublime_text.exe`
      - `C:\Program Files\Sublime Text 3\sublime_text.exe`
      - `C:\Program Files\Sublime Text 4\sublime_text.exe`
