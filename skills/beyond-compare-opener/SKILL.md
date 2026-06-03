@@ -1,6 +1,6 @@
 ---
 name: beyond-compare-opener
-description: "Open two user-named local files or folders in Beyond Compare. Use when the user asks to compare two paths with an editor or diff tool, including Chinese requests equivalent to 'use Beyond Compare to compare A and B', 'compare these two files', or 'diff these two folders'."
+description: "Open two local files or folders in Beyond Compare."
 ---
 
 # Beyond Compare Opener
