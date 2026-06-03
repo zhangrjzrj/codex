@@ -56,7 +56,7 @@ powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.codex\skills\codex-s
   -NextAction "..."
 ```
 
-This writes the checkpoint and starts a new PowerShell process that launches a fresh Codex session with the restore prompt. It does not close the current Codex. Tell the user to close the old session after the new one is restored.
+This writes the checkpoint and starts a new PowerShell process that launches a fresh Codex session with the restore prompt. By default, the new Codex process starts with `--dangerously-bypass-approvals-and-sandbox`, which is the highest-permission mode. Use `-NoFullPermissions` only when the user explicitly wants a restricted restart. It does not close the current Codex. Tell the user to close the old session after the new one is restored.
 
 ## Fresh Session Restore
 
@@ -73,6 +73,8 @@ Use the bundled script to start a new Codex process with a restore prompt:
 powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.codex\skills\codex-session-continuity\scripts\codex_resume_project.ps1" `
   -ProjectRoot "D:\hanhan\app"
 ```
+
+`codex_resume_project.ps1` also starts Codex with `--dangerously-bypass-approvals-and-sandbox` by default. Add `-NoFullPermissions` only for a restricted session.
 
 ## MCP Refresh Guidance
 
@@ -106,4 +108,5 @@ Use `compact` for ordinary context pressure. Use checkpoint + fresh session when
 - Do not kill Codex from inside the current Codex process and assume it can continue.
 - If launching a new Codex, keep the old session alive unless the user explicitly wants it closed.
 - Prefer `codex_restart_once.ps1` over a long-running daemon unless the user explicitly asks for a watcher.
+- Restart/resume scripts default to highest-permission Codex mode per user preference. Mention this when reporting the restart command or result.
 - For project memory, write only inside the current project `.codex-memory/`.

@@ -12,6 +12,7 @@ param(
   [string]$CodexCommand = "codex",
   [switch]$ForkLast,
   [switch]$ResumeLast,
+  [switch]$NoFullPermissions,
   [switch]$NoThreadAppend,
   [switch]$DryRun
 )
@@ -75,6 +76,9 @@ if ($ForkLast) {
 }
 if ($ResumeLast) {
   $resumeArgs += "-ResumeLast"
+}
+if ($NoFullPermissions) {
+  $resumeArgs += "-NoFullPermissions"
 }
 
 if ($DryRun) {

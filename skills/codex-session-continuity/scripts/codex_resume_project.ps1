@@ -3,6 +3,7 @@ param(
   [string]$CodexCommand = "codex",
   [switch]$ForkLast,
   [switch]$ResumeLast,
+  [switch]$NoFullPermissions,
   [switch]$NoStart,
   [string]$ExtraPrompt = ""
 )
@@ -56,10 +57,15 @@ if ($NoStart) {
   exit 0
 }
 
+$codexPermissionArgs = @()
+if (-not $NoFullPermissions) {
+  $codexPermissionArgs += "--dangerously-bypass-approvals-and-sandbox"
+}
+
 if ($ForkLast) {
-  & $CodexCommand fork --last -C $resolvedProject $prompt
+  & $CodexCommand @codexPermissionArgs fork --last -C $resolvedProject $prompt
 } elseif ($ResumeLast) {
-  & $CodexCommand resume --last -C $resolvedProject $prompt
+  & $CodexCommand @codexPermissionArgs resume --last -C $resolvedProject $prompt
 } else {
-  & $CodexCommand -C $resolvedProject $prompt
+  & $CodexCommand @codexPermissionArgs -C $resolvedProject $prompt
 }

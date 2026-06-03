@@ -1,0 +1,4 @@
+interface:
+  display_name: "Sublime File Opener"
+  short_description: "Open requested files in Sublime Text."
+  default_prompt: "Use Sublime Text to open the file I name."
