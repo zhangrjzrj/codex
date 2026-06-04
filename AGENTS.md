@@ -25,6 +25,15 @@
 ## 2.1 代码注释规范
 - 注释中不要带任何人名。
 
+## 2.2 Codex 技能修改校验
+- 新增或修改 Codex skill 后，必须在提交或推送前做格式校验。
+- `SKILL.md` frontmatter 的 `name`、`description` 优先使用显式字符串引号，避免 YAML 解析歧义。
+- 必须运行 `quick_validate.py <skill-dir>`；如果包含脚本，还要做语言级解析检查：
+  - PowerShell：`[scriptblock]::Create((Get-Content -Raw <script>))`
+  - Python：`python -m py_compile <script>`
+  - JSON/YAML：用对应解析器读取一次
+- 校验未通过时，不允许提交或推送该 skill。
+
 ## 3. 反馈闭环模式
 - 当用户明确要求“反馈闭环/闭环直到成功/自循环直到成功”等，进入反馈闭环。
 - 默认流程：测试/执行 -> 收集日志和结果 -> 分析根因 -> 修改代码或调整方案 -> 编译（如需）-> 再测试/再执行 -> 继续循环。
