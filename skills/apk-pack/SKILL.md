@@ -31,6 +31,7 @@ Use the workspace-specific shell instead:
 - `D:\hanhan\app1` -> `D:\hanhan\offline-pack-workspaces\app1\HBuilder-Integrate-AS`
 - `D:\hanhan\app2` -> `D:\hanhan\offline-pack-workspaces\app2\HBuilder-Integrate-AS`
 - `D:\hanhan\app3` -> `D:\hanhan\offline-pack-workspaces\app3\HBuilder-Integrate-AS`
+- `D:\hanhan\app4` -> `D:\hanhan\offline-pack-workspaces\app4\HBuilder-Integrate-AS`
 
 This prevents concurrent packaging runs from overwriting each other's native
 resources, app assets, Gradle intermediates, and `simpleDemo-release.apk`.
@@ -64,7 +65,7 @@ resources, app assets, Gradle intermediates, and `simpleDemo-release.apk`.
 # Local first
 powershell -ExecutionPolicy Bypass -File scripts/build_apk.ps1 -ProjectPath "D:\hanhan\app" -PackageName "com.chaoweisuanli.duomilu" -Mode local
 
-# For D:\hanhan\app1/app2/app3 daily one-shot export, package, install, and launch,
+# For D:\hanhan\app1/app2/app3/app4 daily one-shot export, package, install, and launch,
 # prefer the project script from that workspace. Its defaults should already point
 # to the matching offline-pack-workspaces shell.
 powershell -ExecutionPolicy Bypass -File "D:\hanhan\app3\scripts\export_pack_install.ps1" -VerifyText "登录" -CleanBeforeBuild
