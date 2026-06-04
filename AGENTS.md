@@ -25,7 +25,10 @@
 ## 2.1 代码注释规范
 - 注释中不要带任何人名。
 
-## 2.2 Codex 技能修改校验
+## 2.2 Git 提交规范
+- git commit message 和提交 comment 默认使用中文，除非用户明确要求英文。
+
+## 2.3 Codex 技能修改校验
 - 新增或修改 Codex skill 后，必须在提交或推送前做格式校验。
 - `SKILL.md` frontmatter 的 `name`、`description` 优先使用显式字符串引号，避免 YAML 解析歧义。
 - 必须运行 `quick_validate.py <skill-dir>`；如果包含脚本，还要做语言级解析检查：
