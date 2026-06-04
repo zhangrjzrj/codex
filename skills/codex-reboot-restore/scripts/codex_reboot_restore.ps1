@@ -10,7 +10,9 @@ param(
 
     [switch]$IncludeCandidates,
 
-    [switch]$NoWindowsTerminal
+    [switch]$NoWindowsTerminal,
+
+    [switch]$NoFullAccess
 )
 
 $ErrorActionPreference = "Stop"
@@ -208,13 +210,15 @@ function Start-CodexSession {
         [string]$CodexCommand,
         [string]$SessionId,
         [string]$Cwd,
-        [bool]$UseWindowsTerminal
+        [bool]$UseWindowsTerminal,
+        [bool]$FullAccess
     )
     $cdPart = ""
     if ($Cwd -and (Test-Path -LiteralPath $Cwd)) {
         $cdPart = "-C " + (Quote-Arg $Cwd) + " "
     }
-    $cmd = "$CodexCommand $cdPart" + "resume $SessionId"
+    $accessPart = if ($FullAccess) { "--dangerously-bypass-approvals-and-sandbox " } else { "" }
+    $cmd = "$CodexCommand $accessPart$cdPart" + "resume $SessionId"
 
     if ($UseWindowsTerminal) {
         Start-Process wt -ArgumentList @("new-tab", "powershell", "-NoExit", "-Command", $cmd) | Out-Null
@@ -229,7 +233,8 @@ function Restore-Snapshot {
         [object]$Snapshot,
         [string]$CodexCommand,
         [bool]$IncludeCandidateSessions,
-        [bool]$NoWt
+        [bool]$NoWt,
+        [bool]$FullAccess
     )
     $useWt = (-not $NoWt) -and [bool](Get-Command wt -ErrorAction SilentlyContinue)
     $sessions = @($Snapshot.sessions | Where-Object { $_.kind -eq "explicit" -or $IncludeCandidateSessions })
@@ -237,8 +242,9 @@ function Restore-Snapshot {
 
     foreach ($s in $sessions) {
         if (-not $s.id) { continue }
-        Write-Host "Opening $($s.kind): $($s.id) $($s.cwd)"
-        Start-CodexSession -CodexCommand $CodexCommand -SessionId $s.id -Cwd $s.cwd -UseWindowsTerminal $useWt
+        $accessLabel = if ($FullAccess) { "full-access" } else { "normal" }
+        Write-Host "Opening $($s.kind) [$accessLabel]: $($s.id) $($s.cwd)"
+        Start-CodexSession -CodexCommand $CodexCommand -SessionId $s.id -Cwd $s.cwd -UseWindowsTerminal $useWt -FullAccess $FullAccess
         Start-Sleep -Milliseconds 200
     }
 
@@ -261,6 +267,6 @@ switch ($Action) {
         Show-Snapshot -Snapshot (Load-Snapshot $SnapshotPath)
     }
     "restore" {
-        Restore-Snapshot -Snapshot (Load-Snapshot $SnapshotPath) -CodexCommand $CodexCommand -IncludeCandidateSessions ([bool]$IncludeCandidates) -NoWt ([bool]$NoWindowsTerminal)
+        Restore-Snapshot -Snapshot (Load-Snapshot $SnapshotPath) -CodexCommand $CodexCommand -IncludeCandidateSessions ([bool]$IncludeCandidates) -NoWt ([bool]$NoWindowsTerminal) -FullAccess (-not [bool]$NoFullAccess)
     }
 }

@@ -27,6 +27,18 @@ After reboot, from one Codex:
 powershell -ExecutionPolicy Bypass -File "$env:CODEX_HOME\skills\codex-reboot-restore\scripts\codex_reboot_restore.ps1" -Action restore
 ```
 
+Restore uses full Codex permissions by default:
+
+```text
+--dangerously-bypass-approvals-and-sandbox
+```
+
+To restore without full permissions:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "$env:CODEX_HOME\skills\codex-reboot-restore\scripts\codex_reboot_restore.ps1" -Action restore -NoFullAccess
+```
+
 To inspect without opening terminals:
 
 ```powershell
@@ -40,6 +52,7 @@ powershell -ExecutionPolicy Bypass -File "$env:CODEX_HOME\skills\codex-reboot-re
 - Read each session file's first `session_meta` line to extract `id` and `cwd`.
 - Restore exact sessions by default.
 - Restore candidate sessions only when the script is run with `-IncludeCandidates`.
+- Restore sessions with `--dangerously-bypass-approvals-and-sandbox` by default; pass `-NoFullAccess` to disable this.
 - Launch with Windows Terminal (`wt`) when available; otherwise fall back to `Start-Process powershell`.
 
 ## Safety
@@ -48,6 +61,7 @@ powershell -ExecutionPolicy Bypass -File "$env:CODEX_HOME\skills\codex-reboot-re
 - Do not run `git` or project commands during save/list/restore.
 - Treat plain running `codex` processes without an explicit session id as candidates, because Windows process command lines do not expose the internal session id.
 - If a snapshot contains uncertain candidates, tell the user they can restore them with `-IncludeCandidates`.
+- Default restore opens full-access Codex sessions. Use `-NoFullAccess` when the user wants normal permissions.
 
 ## Snapshot Location
 
