@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex Reboot Restore"
+  short_description: "Save and reopen Codex CLI sessions"
+  default_prompt: "Save or restore active Codex CLI sessions around a Windows reboot."
