@@ -21,7 +21,8 @@ Typical tasks:
 - Prefer DOM/semantic target discovery first when available; use ADB for real system input, fallback execution, and evidence.
 - Do not sediment fixed coordinates as reusable skills. Coordinates are temporary execution evidence, ideally derived from current DOM rect, screenshot, or UI dump at execution time.
 - After every operation, verify state with screenshot, DOM/MCP read, UI dump, URL, text, or logs.
-- If login, SMS, captcha, payment, or other account-security gates appear, stop and let the user handle the sensitive step.
+- Login itself is not a blocker when the user has provided usable credentials or the app has known test credentials. Continue through normal account/password login.
+- Stop only when the flow requires user-held sensitive actions such as SMS/email verification codes, captcha/human verification, QR-code approval, payment confirmation, or other external account-security steps that Codex cannot complete without the user.
 - Keep commands non-destructive. Do not clear app data, uninstall, reset device, or change global settings unless the user explicitly requests it.
 
 ## Common Commands
