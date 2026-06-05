@@ -265,8 +265,10 @@ function Invoke-LocalPack {
   $localProperties = Join-Path $offlineProject 'local.properties'
   $sourceWww = Resolve-SourceWww -appId $appId -publishStartTime $publishStartTime
 
-  if (Test-Path (Join-Path $assetsApps '__UNI__A')) {
-    Remove-Item -Recurse -Force (Join-Path $assetsApps '__UNI__A')
+  if (Test-Path -LiteralPath $assetsApps) {
+    Get-ChildItem -LiteralPath $assetsApps -Directory -Filter '__UNI__*' |
+      Where-Object { $_.Name -ne $appId } |
+      Remove-Item -Recurse -Force
   }
   if (Test-Path (Join-Path $assetsApps $appId)) {
     Remove-Item -Recurse -Force (Join-Path $assetsApps $appId)
