@@ -47,6 +47,8 @@ The script writes one JSON object per matched dialog to:
 
 Each event includes timestamp, HWND, title, child text, matched keywords, PID, process name, process path, repeat count, action, and reason. If `--screenshot` is enabled, it also tries to save a desktop screenshot beside the event log.
 
+Repeat counting defaults to signature mode: same PID plus same matched keyword set is treated as the same dialog storm. This handles resource-dependency popups where each dialog has a different asset path but the same error signature. Use `--repeat-key-mode exact` only when the full dialog text should be treated as part of identity.
+
 Default evidence directory:
 
 ```text
@@ -84,6 +86,7 @@ Common options:
 --auto-close                Send WM_CLOSE to matched dialog windows.
 --auto-kill                 Kill owning process after threshold.
 --kill-threshold 3          Repeated matched dialogs before kill.
+--repeat-key-mode signature Group repeats by PID and matched keywords.
 --max-events 20             Stop after this many matched events.
 --screenshot                Try to save desktop screenshot per event.
 ```

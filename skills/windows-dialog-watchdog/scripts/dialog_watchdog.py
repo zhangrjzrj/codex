@@ -232,6 +232,16 @@ def kill_process(pid):
         kernel32.CloseHandle(handle)
 
 
+def repeat_key_for(event, mode):
+    if mode == "exact":
+        return f"{event['pid']}|{event['window_title']}|{event['dialog_text'][:200]}"
+    if event["matched_keywords"]:
+        signature = ",".join(sorted(event["matched_keywords"]))
+    else:
+        signature = event["window_title"] or event["window_class"]
+    return f"{event['pid']}|{event['process_name']}|{signature}"
+
+
 def scan(args, evidence_dir, repeats, seq):
     events = []
     for window in enum_top_windows():
@@ -240,8 +250,10 @@ def scan(args, evidence_dir, repeats, seq):
         event = match_event(window, args)
         if not event:
             continue
-        key = f"{event['pid']}|{event['window_title']}|{event['dialog_text'][:200]}"
+        key = repeat_key_for(event, args.repeat_key_mode)
         repeats[key] = repeats.get(key, 0) + 1
+        event["repeat_key"] = key
+        event["repeat_key_mode"] = args.repeat_key_mode
         event["repeat_count"] = repeats[key]
         event["action"] = "record"
         event["reason"] = "matched_dialog"
@@ -274,6 +286,7 @@ def parse_args():
     parser.add_argument("--auto-close", action="store_true", help="send WM_CLOSE to matched dialog windows")
     parser.add_argument("--auto-kill", action="store_true", help="kill owning process when repeat threshold is reached")
     parser.add_argument("--kill-threshold", type=int, default=3, help="repeat count before killing a process")
+    parser.add_argument("--repeat-key-mode", choices=["signature", "exact"], default="signature", help="signature groups dialogs by PID and matched keywords; exact groups by PID, title, and text prefix")
     parser.add_argument("--max-events", type=int, default=0, help="stop after this many matched events")
     parser.add_argument("--screenshot", action="store_true", help="try to save a desktop screenshot per event")
     parser.add_argument("--include-all-classes", action="store_true", help="allow non-dialog top-level windows that match filters")
