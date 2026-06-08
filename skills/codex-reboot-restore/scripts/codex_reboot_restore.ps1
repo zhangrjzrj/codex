@@ -12,7 +12,9 @@ param(
 
     [switch]$NoWindowsTerminal,
 
-    [switch]$NoFullAccess
+    [switch]$NoFullAccess,
+
+    [switch]$DryRun
 )
 
 $ErrorActionPreference = "Stop"
@@ -90,6 +92,132 @@ function Get-ExplicitResumeId {
     return ""
 }
 
+function Get-WindowTitleMapPath {
+    param([string]$CodexHome)
+    return (Join-Path $CodexHome "reboot-restore\window-titles.json")
+}
+
+function Load-WindowTitleMap {
+    param([string]$CodexHome)
+    $path = Get-WindowTitleMapPath -CodexHome $CodexHome
+    if (-not (Test-Path -LiteralPath $path)) { return @{} }
+    try {
+        $obj = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+        $map = @{}
+        foreach ($prop in $obj.PSObject.Properties) {
+            $map[$prop.Name] = [string]$prop.Value
+        }
+        return $map
+    }
+    catch {
+        return @{}
+    }
+}
+
+function Get-SessionDeclaredTitle {
+    param([string]$SessionFile)
+    if (-not $SessionFile -or -not (Test-Path -LiteralPath $SessionFile)) { return "" }
+
+    $patterns = @(
+        "(?i)/rename\s+(.+)$",
+        "当前窗口主题[:：]\s*(.+)$",
+        "窗口主题[:：]\s*(.+)$",
+        "把(?:这个|当前)?窗口(?:记为|命名为|设为|设置为)[:：]?\s*(.+)$"
+    )
+
+    try {
+        $fileInfo = Get-Item -LiteralPath $SessionFile -ErrorAction Stop
+        $maxBytes = 524288
+        $fs = [System.IO.File]::Open($fileInfo.FullName, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+        try {
+            $start = [Math]::Max(0, $fs.Length - $maxBytes)
+            $fs.Seek($start, [System.IO.SeekOrigin]::Begin) | Out-Null
+            $buffer = New-Object byte[] ([int]($fs.Length - $start))
+            $read = $fs.Read($buffer, 0, $buffer.Length)
+        }
+        finally {
+            $fs.Dispose()
+        }
+        if ($read -le 0) { return "" }
+        $text = [System.Text.Encoding]::UTF8.GetString($buffer, 0, $read)
+        $lines = $text -split "`r?`n"
+        [array]::Reverse($lines)
+        foreach ($line in $lines) {
+            foreach ($pattern in $patterns) {
+                if ($line -match $pattern) {
+                    $title = [string]$Matches[1]
+                    $title = $title -replace '\\n.*$', ''
+                    $title = $title -replace '[",，。]+$', ''
+                    $title = $title.Trim()
+                    if ($title) { return $title }
+                }
+            }
+        }
+    }
+    catch {
+        return ""
+    }
+
+    return ""
+}
+
+function Get-ProcessWindowTitle {
+    param(
+        [object]$Process,
+        [hashtable]$ProcessById
+    )
+    if (-not $Process) { return "" }
+
+    $current = $Process
+    for ($i = 0; $i -lt 4 -and $current; ++$i) {
+        try {
+            $gp = Get-Process -Id ([int]$current.ProcessId) -ErrorAction SilentlyContinue
+            $title = if ($gp) { [string]$gp.MainWindowTitle } else { "" }
+            if ($title) {
+                $name = [string]$current.Name
+                if ($name -in @("codex.exe", "node.exe", "powershell.exe", "cmd.exe")) {
+                    if ($title -notmatch "^(Windows PowerShell|Administrator: Windows PowerShell|Command Prompt)$") {
+                        return $title.Trim()
+                    }
+                }
+            }
+        }
+        catch {
+        }
+
+        if (-not $current.ParentProcessId -or -not $ProcessById.ContainsKey([int]$current.ParentProcessId)) { break }
+        $current = $ProcessById[[int]$current.ParentProcessId]
+    }
+
+    return ""
+}
+
+function Resolve-SessionTitle {
+    param(
+        [string]$Id,
+        [string]$SessionFile,
+        [object]$Process,
+        [hashtable]$ProcessById,
+        [hashtable]$TitleMap
+    )
+
+    if ($Id -and $TitleMap.ContainsKey($Id) -and $TitleMap[$Id]) {
+        return [pscustomobject]@{ Title = [string]$TitleMap[$Id]; Source = "map" }
+    }
+
+    $declared = Get-SessionDeclaredTitle -SessionFile $SessionFile
+    if ($declared) {
+        return [pscustomobject]@{ Title = $declared; Source = "session" }
+    }
+
+    $processTitle = Get-ProcessWindowTitle -Process $Process -ProcessById $ProcessById
+    if ($processTitle) {
+        return [pscustomobject]@{ Title = $processTitle; Source = "process" }
+    }
+
+    return [pscustomobject]@{ Title = ""; Source = "" }
+}
+
 function New-SessionRecord {
     param(
         [string]$Kind,
@@ -97,11 +225,15 @@ function New-SessionRecord {
         [string]$Cwd,
         [string]$SessionFile,
         [datetime]$LastWriteTime,
-        [object]$Process
+        [object]$Process,
+        [string]$Title,
+        [string]$TitleSource
     )
     return [pscustomobject]@{
         kind = $Kind
         id = $Id
+        title = if ($Title) { $Title } else { "" }
+        title_source = if ($TitleSource) { $TitleSource } else { "" }
         cwd = $Cwd
         session_file = $SessionFile
         last_write_time = if ($LastWriteTime) { $LastWriteTime.ToString("o") } else { "" }
@@ -124,6 +256,12 @@ function Save-Snapshot {
             ($_.Name -ieq "codex.exe") -or
             ($_.CommandLine -match "node_modules[/\\]@openai[/\\]codex[/\\]bin[/\\]codex\.js")
         }
+    $allProcesses = Get-CimInstance Win32_Process
+    $processById = @{}
+    foreach ($proc in $allProcesses) {
+        $processById[[int]$proc.ProcessId] = $proc
+    }
+    $titleMap = Load-WindowTitleMap -CodexHome $CodexHome
     $codexExeProcesses = @($processes | Where-Object { $_.Name -ieq "codex.exe" })
 
     $records = New-Object System.Collections.Generic.List[object]
@@ -141,7 +279,8 @@ function Save-Snapshot {
             $cwd = if ($meta) { $meta.Cwd } else { "" }
             $lastWrite = if ($file) { (Get-Item -LiteralPath $file).LastWriteTime } else { $null }
             if (-not $seen.ContainsKey($id)) {
-                $records.Add((New-SessionRecord -Kind "explicit" -Id $id -Cwd $cwd -SessionFile $file -LastWriteTime $lastWrite -Process $p))
+                $titleInfo = Resolve-SessionTitle -Id $id -SessionFile $file -Process $p -ProcessById $processById -TitleMap $titleMap
+                $records.Add((New-SessionRecord -Kind "explicit" -Id $id -Cwd $cwd -SessionFile $file -LastWriteTime $lastWrite -Process $p -Title $titleInfo.Title -TitleSource $titleInfo.Source))
                 $seen[$id] = $true
             }
         }
@@ -154,7 +293,8 @@ function Save-Snapshot {
         $meta = Get-SessionMeta $f.FullName
         if (-not $meta -or -not $meta.Id) { continue }
         if ($seen.ContainsKey($meta.Id)) { continue }
-        $records.Add((New-SessionRecord -Kind "candidate" -Id $meta.Id -Cwd $meta.Cwd -SessionFile $f.FullName -LastWriteTime $f.LastWriteTime -Process $null))
+        $titleInfo = Resolve-SessionTitle -Id $meta.Id -SessionFile $f.FullName -Process $null -ProcessById $processById -TitleMap $titleMap
+        $records.Add((New-SessionRecord -Kind "candidate" -Id $meta.Id -Cwd $meta.Cwd -SessionFile $f.FullName -LastWriteTime $f.LastWriteTime -Process $null -Title $titleInfo.Title -TitleSource $titleInfo.Source))
         $seen[$meta.Id] = $true
         ++$candidateAdded
     }
@@ -195,7 +335,14 @@ function Show-Snapshot {
     Write-Host "Machine: $($Snapshot.machine) User: $($Snapshot.user)"
     foreach ($s in $Snapshot.sessions) {
         $mark = if ($s.kind -eq "explicit") { "exact" } else { "candidate" }
-        Write-Host ("[{0}] {1} cwd={2} file={3}" -f $mark, $s.id, $s.cwd, $s.session_file)
+        $title = if ($s.PSObject.Properties.Name -contains "title") { [string]$s.title } else { "" }
+        $source = if ($s.PSObject.Properties.Name -contains "title_source") { [string]$s.title_source } else { "" }
+        if ($title) {
+            Write-Host ("[{0}] {1} title={2} source={3} cwd={4} file={5}" -f $mark, $s.id, $title, $source, $s.cwd, $s.session_file)
+        }
+        else {
+            Write-Host ("[{0}] {1} cwd={2} file={3}" -f $mark, $s.id, $s.cwd, $s.session_file)
+        }
     }
 }
 
@@ -210,8 +357,10 @@ function Start-CodexSession {
         [string]$CodexCommand,
         [string]$SessionId,
         [string]$Cwd,
+        [string]$Title,
         [bool]$UseWindowsTerminal,
-        [bool]$FullAccess
+        [bool]$FullAccess,
+        [bool]$DryRun
     )
     $cdPart = ""
     if ($Cwd -and (Test-Path -LiteralPath $Cwd)) {
@@ -221,10 +370,24 @@ function Start-CodexSession {
     $cmd = "$CodexCommand $accessPart$cdPart" + "resume $SessionId"
 
     if ($UseWindowsTerminal) {
-        Start-Process wt -ArgumentList @("new-tab", "powershell", "-NoExit", "-Command", $cmd) | Out-Null
+        $args = @("new-tab")
+        if ($Title) {
+            $args += @("--title", $Title)
+        }
+        $args += @("powershell", "-NoExit", "-Command", $cmd)
+        if ($DryRun) {
+            Write-Host ("DRY-RUN wt {0}" -f (($args | ForEach-Object { Quote-Arg $_ }) -join " "))
+            return
+        }
+        Start-Process wt -ArgumentList $args | Out-Null
     }
     else {
-        Start-Process powershell -ArgumentList @("-NoExit", "-Command", $cmd) | Out-Null
+        $titlePart = if ($Title) { '$host.UI.RawUI.WindowTitle = ' + (Quote-Arg $Title) + '; ' } else { "" }
+        if ($DryRun) {
+            Write-Host ("DRY-RUN powershell -NoExit -Command {0}" -f (Quote-Arg ($titlePart + $cmd)))
+            return
+        }
+        Start-Process powershell -ArgumentList @("-NoExit", "-Command", ($titlePart + $cmd)) | Out-Null
     }
 }
 
@@ -234,7 +397,8 @@ function Restore-Snapshot {
         [string]$CodexCommand,
         [bool]$IncludeCandidateSessions,
         [bool]$NoWt,
-        [bool]$FullAccess
+        [bool]$FullAccess,
+        [bool]$DryRun
     )
     $useWt = (-not $NoWt) -and [bool](Get-Command wt -ErrorAction SilentlyContinue)
     $sessions = @($Snapshot.sessions | Where-Object { $_.kind -eq "explicit" -or $IncludeCandidateSessions })
@@ -243,8 +407,10 @@ function Restore-Snapshot {
     foreach ($s in $sessions) {
         if (-not $s.id) { continue }
         $accessLabel = if ($FullAccess) { "full-access" } else { "normal" }
-        Write-Host "Opening $($s.kind) [$accessLabel]: $($s.id) $($s.cwd)"
-        Start-CodexSession -CodexCommand $CodexCommand -SessionId $s.id -Cwd $s.cwd -UseWindowsTerminal $useWt -FullAccess $FullAccess
+        $title = if ($s.PSObject.Properties.Name -contains "title") { [string]$s.title } else { "" }
+        $titleLabel = if ($title) { " title=$title" } else { "" }
+        Write-Host "Opening $($s.kind) [$accessLabel]: $($s.id) $($s.cwd)$titleLabel"
+        Start-CodexSession -CodexCommand $CodexCommand -SessionId $s.id -Cwd $s.cwd -Title $title -UseWindowsTerminal $useWt -FullAccess $FullAccess -DryRun $DryRun
         Start-Sleep -Milliseconds 200
     }
 
@@ -267,6 +433,6 @@ switch ($Action) {
         Show-Snapshot -Snapshot (Load-Snapshot $SnapshotPath)
     }
     "restore" {
-        Restore-Snapshot -Snapshot (Load-Snapshot $SnapshotPath) -CodexCommand $CodexCommand -IncludeCandidateSessions ([bool]$IncludeCandidates) -NoWt ([bool]$NoWindowsTerminal) -FullAccess (-not [bool]$NoFullAccess)
+        Restore-Snapshot -Snapshot (Load-Snapshot $SnapshotPath) -CodexCommand $CodexCommand -IncludeCandidateSessions ([bool]$IncludeCandidates) -NoWt ([bool]$NoWindowsTerminal) -FullAccess (-not [bool]$NoFullAccess) -DryRun ([bool]$DryRun)
     }
 }

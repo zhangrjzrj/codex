@@ -11,6 +11,14 @@ Capture a reboot snapshot of active Codex CLI sessions and later reopen them in 
 
 This skill cannot resurrect a dead process in-place. It restores by launching new `codex resume <session-id>` processes from saved session metadata.
 
+The snapshot also stores a best-effort window title for each session. It resolves titles in this order:
+
+1. `$CODEX_HOME\reboot-restore\window-titles.json` session-id mapping
+2. recent session text such as `/rename ...` or `当前窗口主题：...`
+3. directly exposed process window title, when available
+
+Windows Terminal does not reliably expose every tab's custom title to child processes, so the mapping or explicit session text is the stable fallback.
+
 ## Workflow
 
 Use `scripts/codex_reboot_restore.ps1`.
@@ -45,15 +53,22 @@ To inspect without opening terminals:
 powershell -ExecutionPolicy Bypass -File "$env:CODEX_HOME\skills\codex-reboot-restore\scripts\codex_reboot_restore.ps1" -Action list
 ```
 
+To preview restore commands without opening terminals:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "$env:CODEX_HOME\skills\codex-reboot-restore\scripts\codex_reboot_restore.ps1" -Action restore -DryRun
+```
+
 ## Behavior
 
 - Prefer exact session ids found in running Codex command lines, especially `codex resume <session-id>`.
 - Also scan recent `CODEX_HOME\sessions\**\rollout-*.jsonl` files and record candidates that were recently modified.
 - Read each session file's first `session_meta` line to extract `id` and `cwd`.
+- Save `title` and `title_source` when a title can be resolved.
 - Restore exact sessions by default.
 - Restore candidate sessions only when the script is run with `-IncludeCandidates`.
 - Restore sessions with `--dangerously-bypass-approvals-and-sandbox` by default; pass `-NoFullAccess` to disable this.
-- Launch with Windows Terminal (`wt`) when available; otherwise fall back to `Start-Process powershell`.
+- Launch with Windows Terminal (`wt`) when available and pass `new-tab --title`; otherwise fall back to `Start-Process powershell` and set `$host.UI.RawUI.WindowTitle`.
 
 ## Safety
 
@@ -75,4 +90,18 @@ When `CODEX_HOME` is unset, use:
 
 ```text
 $HOME\.codex\reboot-restore\latest.json
+```
+
+Optional title mapping:
+
+```text
+$CODEX_HOME\reboot-restore\window-titles.json
+```
+
+Example:
+
+```json
+{
+  "019e9686-378d-7900-9097-c4b19bc9f4ff": "nbg"
+}
 ```
