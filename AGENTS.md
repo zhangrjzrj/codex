@@ -58,6 +58,13 @@
   - 用户主动中止
 - Messiah 场景优先复用专项技能（测试编排/Telnet/编译修复/RenderDoc/EXR 等），避免临时拼接流程。
 
+## 3.1 Windows 弹窗熔断 / Dialog Watchdog
+- Windows GUI 反馈闭环中，不得因调试对象反复弹出模态窗口而无限等待。
+- 进入可能启动 GUI 客户端、游戏、编辑器、RenderDoc、VS 调试对象的闭环前，应优先启用 `windows-dialog-watchdog`。
+- watchdog 默认先 dry-run，只记录弹窗标题、正文、PID、进程名、进程路径和动作证据。
+- 只有确认 PID、进程路径、弹窗文本与当前任务匹配后，才允许启用 auto-close / auto-kill。
+- 如果目标进程退出、Telnet 断开、自动化卡住，应先检查 watchdog evidence，再判断是崩溃、资源错误、环境错误还是代码错误。
+
 ## 4. 会话记忆落盘（项目内）
 - 每轮结束前落盘“当前进度 + 关键结论 + 下一步建议”。
 - 记忆路径固定：`.codex-memory/`（不存在可自动创建）。

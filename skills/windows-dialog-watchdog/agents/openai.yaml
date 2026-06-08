@@ -1,0 +1,4 @@
+interface:
+  display_name: "Windows Dialog Watchdog"
+  short_description: "Detect and break Windows modal dialog loops."
+  default_prompt: "Start a Windows dialog watchdog for this feedback loop and collect evidence if modal dialogs appear."
