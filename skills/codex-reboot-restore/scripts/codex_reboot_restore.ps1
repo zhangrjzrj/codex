@@ -218,6 +218,25 @@ function Resolve-SessionTitle {
     return [pscustomobject]@{ Title = ""; Source = "" }
 }
 
+function Get-FallbackTitle {
+    param(
+        [string]$Cwd,
+        [string]$Id
+    )
+    if ($Cwd) {
+        try {
+            $leaf = Split-Path -Leaf $Cwd
+            if ($leaf) { return $leaf }
+        }
+        catch {
+        }
+    }
+    if ($Id -and $Id.Length -ge 8) {
+        return "codex-" + $Id.Substring(0, 8)
+    }
+    return "codex"
+}
+
 function New-SessionRecord {
     param(
         [string]$Kind,
@@ -229,11 +248,13 @@ function New-SessionRecord {
         [string]$Title,
         [string]$TitleSource
     )
+    $resolvedTitle = if ($Title) { $Title } else { Get-FallbackTitle -Cwd $Cwd -Id $Id }
+    $resolvedTitleSource = if ($TitleSource) { $TitleSource } elseif ($resolvedTitle) { "fallback" } else { "" }
     return [pscustomobject]@{
         kind = $Kind
         id = $Id
-        title = if ($Title) { $Title } else { "" }
-        title_source = if ($TitleSource) { $TitleSource } else { "" }
+        title = if ($resolvedTitle) { $resolvedTitle } else { "" }
+        title_source = if ($resolvedTitleSource) { $resolvedTitleSource } else { "" }
         cwd = $Cwd
         session_file = $SessionFile
         last_write_time = if ($LastWriteTime) { $LastWriteTime.ToString("o") } else { "" }
@@ -372,7 +393,7 @@ function Start-CodexSession {
     if ($UseWindowsTerminal) {
         $args = @("new-tab")
         if ($Title) {
-            $args += @("--title", $Title)
+            $args += @("--title", $Title, "--suppressApplicationTitle")
         }
         $args += @("powershell", "-NoExit", "-Command", $cmd)
         if ($DryRun) {

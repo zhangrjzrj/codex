@@ -68,7 +68,7 @@ powershell -ExecutionPolicy Bypass -File "$env:CODEX_HOME\skills\codex-reboot-re
 - Restore exact sessions by default.
 - Restore candidate sessions only when the script is run with `-IncludeCandidates`.
 - Restore sessions with `--dangerously-bypass-approvals-and-sandbox` by default; pass `-NoFullAccess` to disable this.
-- Launch with Windows Terminal (`wt`) when available and pass `new-tab --title`; otherwise fall back to `Start-Process powershell` and set `$host.UI.RawUI.WindowTitle`.
+- Launch with Windows Terminal (`wt`) when available and pass `new-tab --title --suppressApplicationTitle`; otherwise fall back to `Start-Process powershell` and set `$host.UI.RawUI.WindowTitle`.
 
 ## Safety
 

@@ -19,7 +19,7 @@ This skill is the orchestration layer.
 1. Confirm scenario and rounds.
 - Built-in scenarios: `aov_record`, `nbs_playback`.
 - Run one scenario per loop.
-- For Windows modal-dialog protection, use `windows-dialog-watchdog` before launch. Start in dry-run for new targets; after confirming evidence quality, use auto-close/auto-kill for repeated matched dialogs.
+- Launch Windows GUI clients in the background when possible, record the PID, and periodically inspect process state, windows/dialogs, logs, and timeout conditions.
 
 2. Compile (optional).
 - Use `messiah-ib-build-fix/scripts/invoke_ib_build.ps1`.
@@ -62,7 +62,7 @@ This skill is the orchestration layer.
 5. Collect artifacts and emit result.
 - Save run outputs under `artifacts/test_runs/<run_id>/`.
 - Always write `result.json`, `commands.trace`, copied logs, and dumps when present.
-- If the client exits, Telnet disconnects, or automation stalls, inspect watchdog evidence such as `.codex-memory/tasks/dialog-watchdog/events.jsonl` before diagnosing the run.
+- If the client exits, Telnet disconnects, automation stalls, or a fatal dialog appears, record the PID/path/window/log evidence, terminate the target process when needed, then diagnose the run.
 - On failure/crash, write `fix_plan.md` and stop for approval before code edits.
 
 6. Optional RenderDoc `.rdc` analysis.
@@ -120,11 +120,6 @@ python C:\Users\zhangruojun\.codex\skills\messiah-test-loop\scripts\renderdoc_an
 Fast-fail Telnet smoke (5-second checks):
 ```powershell
 python C:\Users\zhangruojun\.codex\skills\messiah-test-loop\scripts\telnet_smoke.py --connect-timeout-sec 5 --io-timeout-sec 5
-```
-
-Dialog watchdog dry-run:
-```powershell
-python C:\Users\zhangruojun\.codex\skills\windows-dialog-watchdog\scripts\dialog_watchdog.py --watch --evidence-dir .codex-memory\tasks\dialog-watchdog --process-name Messiah --keyword "Cannot find resource dependence"
 ```
 
 If the user only wants direct control or replay on a running client, prefer:

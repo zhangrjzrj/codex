@@ -35,10 +35,11 @@ Turn a user target into a repeatable loop:
 
 ```text
 目标确认
--> 启动 Windows dialog watchdog dry-run/熔断保护
+-> 后台启动目标进程并记录 PID
 -> 执行测试/命令
 -> 收集 result.json / commands.trace / client log / dump / patch / build log
--> 如发生进程退出/连接断开，先读取 watchdog evidence
+-> 周期检查进程状态、窗口状态、日志推进和超时条件
+-> 如发生进程退出/连接断开/卡死/致命弹窗，记录证据并熔断目标进程
 -> 分析根因
 -> 选择动作
    -> 改代码
@@ -67,8 +68,6 @@ Do not stop at analysis only unless there is a real blocker.
 
 Prefer the minimal existing skill needed for the current round:
 
-- Windows modal dialog detection / popup storm fuse:
-  use `windows-dialog-watchdog`
 - Full launch/login/scenario/artifacts:
   use `messiah-test-loop`
 - Direct control on a running client:
@@ -137,8 +136,8 @@ Stop only when one of these is true:
 
 - Do not change staged files unless the user explicitly asks
 - Do not make speculative large refactors in the middle of a loop
-- For Windows GUI test loops, start `windows-dialog-watchdog` before or while launching the client. Use dry-run first for new targets; enable auto-close/auto-kill only after evidence proves the PID, process path, and dialog text match the current task.
-- If the target process exits, Telnet disconnects, or the loop appears blocked by UI, check watchdog `events.jsonl` before assuming a code crash or timeout.
+- For Windows GUI test loops, prefer background launch with a recorded PID. Periodically inspect process state, window/dialog state, recent logs, and timeout conditions.
+- If the target process exits, Telnet disconnects, automation stalls, or a fatal dialog appears, record evidence and terminate the target process before diagnosing the run.
 - Prefer the smallest next verification that can cut uncertainty
 - When a failure happens, first decide whether it is:
   - execution failure

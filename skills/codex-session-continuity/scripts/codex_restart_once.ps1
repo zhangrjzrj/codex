@@ -9,6 +9,7 @@ param(
   [string[]]$StopConditions = @(),
   [string]$Thread = "",
   [string]$TaskId = "",
+  [string]$WindowTitle = "",
   [string]$CodexCommand = "codex",
   [switch]$ForkLast,
   [switch]$ResumeLast,
@@ -64,11 +65,24 @@ if ($LASTEXITCODE -ne 0) {
   throw "checkpoint failed"
 }
 
+$resolvedWindowTitle = $WindowTitle
+if ([string]::IsNullOrWhiteSpace($resolvedWindowTitle)) {
+  try {
+    $resolvedWindowTitle = $host.UI.RawUI.WindowTitle
+  } catch {
+    $resolvedWindowTitle = ""
+  }
+}
+if ([string]::IsNullOrWhiteSpace($resolvedWindowTitle)) {
+  $resolvedWindowTitle = Split-Path -Leaf $resolvedProject
+}
+
 $resumeArgs = @(
   "-NoExit",
   "-ExecutionPolicy", "Bypass",
   "-File", $resumeScript,
   "-ProjectRoot", $resolvedProject,
+  "-WindowTitle", $resolvedWindowTitle,
   "-CodexCommand", $CodexCommand
 )
 if ($ForkLast) {
@@ -82,22 +96,29 @@ if ($NoFullPermissions) {
 }
 
 if ($DryRun) {
+  $wtCommand = Get-Command wt -ErrorAction SilentlyContinue
   [PSCustomObject]@{
     status = "dry_run"
     project_root = $resolvedProject
     checkpoint_output = ($checkpointOutput -join "`n")
-    start_process = "powershell"
-    start_args = $resumeArgs
+    start_process = if ($wtCommand) { "wt" } else { "powershell" }
+    start_args = if ($wtCommand) { @("-w", "0", "new-tab", "--title", $resolvedWindowTitle, "--suppressApplicationTitle", "powershell") + $resumeArgs } else { $resumeArgs }
     note = "DryRun did not start a new Codex process."
   } | ConvertTo-Json -Depth 6
   exit 0
 }
 
-Start-Process -FilePath "powershell" -ArgumentList $resumeArgs -WindowStyle Normal | Out-Null
+$wtCommand = Get-Command wt -ErrorAction SilentlyContinue
+if ($wtCommand) {
+  & $wtCommand.Source -w 0 new-tab --title $resolvedWindowTitle --suppressApplicationTitle powershell @resumeArgs | Out-Null
+} else {
+  Start-Process -FilePath "powershell" -ArgumentList $resumeArgs -WindowStyle Normal | Out-Null
+}
 
 [PSCustomObject]@{
   status = "restart_worker_started"
   project_root = $resolvedProject
   checkpoint_output = ($checkpointOutput -join "`n")
-  note = "A new PowerShell window was started to launch a fresh Codex session. Close the old Codex after the new one restores."
+  window_title = $resolvedWindowTitle
+  note = "A new Codex session was started. If Windows Terminal is available, it was opened as a new tab with the same title. Close the old Codex after the new one restores."
 } | ConvertTo-Json -Depth 6

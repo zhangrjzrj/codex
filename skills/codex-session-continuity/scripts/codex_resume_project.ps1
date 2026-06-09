@@ -1,6 +1,7 @@
 param(
   [string]$ProjectRoot = (Get-Location).Path,
   [string]$CodexCommand = "codex",
+  [string]$WindowTitle = "",
   [switch]$ForkLast,
   [switch]$ResumeLast,
   [switch]$NoFullPermissions,
@@ -11,6 +12,13 @@ param(
 $ErrorActionPreference = "Stop"
 
 $resolvedProject = (Resolve-Path -LiteralPath $ProjectRoot).Path
+if (-not [string]::IsNullOrWhiteSpace($WindowTitle)) {
+  try {
+    $host.UI.RawUI.WindowTitle = $WindowTitle
+  } catch {
+  }
+}
+
 $memoryDir = Join-Path $resolvedProject ".codex-memory"
 $currentPath = Join-Path $memoryDir "current-task.json"
 $indexPath = Join-Path $memoryDir "index.md"
