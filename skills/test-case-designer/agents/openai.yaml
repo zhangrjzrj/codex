@@ -1,0 +1,4 @@
+interface:
+  display_name: "Test Case Designer"
+  short_description: "Design complete verification cases"
+  default_prompt: "Use $test-case-designer to design complete test cases and verification gates before a feedback loop."
