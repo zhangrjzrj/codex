@@ -1,4 +1,4 @@
 interface:
   display_name: "Messiah RenderDoc Analyzer"
-  short_description: "Analyze Messiah .rdc captures and export shader details"
-  default_prompt: "Use $messiah-renderdoc-analyzer to inspect a Messiah RenderDoc capture and summarize the target pass, shader stage, and cbuffer values."
+  short_description: "Analyze Messiah .rdc captures, shaders, cbuffers, and debug replacement output"
+  default_prompt: "Use $messiah-renderdoc-analyzer to inspect a Messiah RenderDoc capture, summarize the target pass/shader state, and apply shader replacement debug output when needed."
