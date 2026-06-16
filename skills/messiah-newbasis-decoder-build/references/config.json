@@ -1,0 +1,19 @@
+{
+  "default_version": "1.0.3",
+  "default_workdir": "E:\\messiah_h74\\buildscript",
+  "versions": {
+    "1.0.3": {
+      "recipe": "E:\\messiah_h74\\buildscript\\__V2__\\ConanFiles\\NewBasis\\libNewBasisDecoder\\1.0.3\\testing",
+      "source_dir": "E:\\messiah_h74\\newbasis\\NewBasisDecoder",
+      "build_dir": "E:\\messiah_h74\\newbasis\\tmp\\conan.local.win.1.0.3.vs2022",
+      "remote": "NeoX",
+      "build_type": "RelWithDebInfo",
+      "shared": true,
+      "os": "Windows",
+      "arch": "x86_64",
+      "compiler": "Visual Studio",
+      "compiler_version": "17",
+      "compiler_runtime": "MD"
+    }
+  }
+}

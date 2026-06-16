@@ -1,0 +1,4 @@
+interface:
+  display_name: "Messiah NewBasis Decoder Build"
+  short_description: "Build NewBasis decoder DLLs with Conan."
+  default_prompt: "Build the Messiah NewBasis decoder for Windows using the configured Conan recipe."
