@@ -25,6 +25,7 @@ If the user needs to launch the client, capture on playback start, or run a full
 
 - `scripts/renderdoc_analyze.py`: offline analyzer
 - `scripts/renderdoc_shader_debug.py`: apply a temporary RenderDoc shader replacement, export the current render target as PNG, and write color statistics JSON
+- `scripts/renderdoc_window_capture.py`: capture a non-minimized RenderDoc window by title via Windows `PrintWindow`, useful when Codex needs eyes on the current UI without stealing the mouse/keyboard
 
 ## Workflow
 
@@ -76,9 +77,15 @@ Shader replacement debug export:
 python C:\Users\zhangruojun\.codex\skills\messiah-renderdoc-analyzer\scripts\renderdoc_shader_debug.py --rdc-path "F:\capture.rdc" --event-id 1215 --shader-path "F:\shader.txt" --output-png "F:\out\event1215_debug.png" --output-json "F:\out\event1215_debug.json"
 ```
 
+RenderDoc window capture by title:
+```powershell
+python C:\Users\zhangruojun\.codex\skills\messiah-renderdoc-analyzer\scripts\renderdoc_window_capture.py --window-title "nbs分支.rdc - RenderDoc" --output-png "F:\out\rd_window.png" --output-json "F:\out\rd_window.json"
+```
+
 ## Guardrails
 
 - Treat this as offline analysis only; do not launch the game from this skill.
+- Window capture works best when the RenderDoc window is not minimized; foreground focus is preferred but not required.
 - Do not describe shader replacement as permanently modifying an `.rdc`; it is replay-only.
 - Prefer the smallest command that answers the user?s question.
 - Report clearly when the analyzer can only produce a partial match.
