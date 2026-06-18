@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import io
 import json
 import os
 import re
@@ -19,24 +20,9 @@ def write_json(path: Path, payload: dict) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def detect_qrenderdoc(requested_path: str) -> Path:
-    candidates: list[Path] = []
-    if requested_path and requested_path.strip():
-        candidates.append(Path(requested_path).expanduser())
-    env_path = os.environ.get("RENDERDOC_QRENDERDOC", "").strip()
-    if env_path:
-        candidates.append(Path(env_path).expanduser())
-    candidates.extend(
-        [
-            Path(r"C:\Program Files\RenderDoc\qrenderdoc.exe"),
-            Path(r"C:\Program Files (x86)\RenderDoc\qrenderdoc.exe"),
-        ]
-    )
-    for candidate in candidates:
-        resolved = candidate.resolve()
-        if resolved.exists():
-            return resolved
-    raise FileNotFoundError("qrenderdoc.exe not found; use --qrenderdoc-path or RENDERDOC_QRENDERDOC")
+def parse_version_tuple(version_text: str) -> tuple[int, ...]:
+    parts = [int(p) for p in re.findall(r"\d+", version_text or "")]
+    return tuple(parts) if parts else (0,)
 
 
 def detect_renderdoc_version(qrenderdoc_path: Path) -> str:
@@ -55,6 +41,61 @@ def detect_renderdoc_version(qrenderdoc_path: Path) -> str:
     text = ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip()
     match = re.search(r"v(\d+(?:\.\d+)*)", text)
     return match.group(1) if match else text
+
+
+def detect_qrenderdoc(requested_path: str) -> tuple[Path, str, list[dict]]:
+    if requested_path and requested_path.strip():
+        resolved = Path(requested_path).expanduser().resolve()
+        if not resolved.exists():
+            raise FileNotFoundError(f"explicit qrenderdoc.exe not found: {resolved}")
+        version = detect_renderdoc_version(resolved)
+        return resolved, "explicit_argument", [
+            {"path": str(resolved), "version": version, "source": "explicit_argument", "selected": True}
+        ]
+
+    candidates: list[tuple[str, Path]] = []
+    env_path = os.environ.get("RENDERDOC_QRENDERDOC", "").strip()
+    if env_path:
+        candidates.append(("env:RENDERDOC_QRENDERDOC", Path(env_path).expanduser()))
+    candidates.extend(
+        [
+            ("system_program_files", Path(r"C:\Program Files\RenderDoc\qrenderdoc.exe")),
+            ("system_program_files_x86", Path(r"C:\Program Files (x86)\RenderDoc\qrenderdoc.exe")),
+            ("workspace_renderdoc", Path(r"F:\messiah_official\messiah\Engine\Tools\RenderDoc\qrenderdoc.exe")),
+        ]
+    )
+
+    seen: set[str] = set()
+    rows: list[dict] = []
+    for source, candidate in candidates:
+        try:
+            resolved = candidate.resolve()
+        except Exception:
+            resolved = candidate
+        norm = str(resolved).lower()
+        if norm in seen:
+            continue
+        seen.add(norm)
+        if not resolved.exists():
+            continue
+        version = detect_renderdoc_version(resolved)
+        rows.append(
+            {
+                "path": str(resolved),
+                "version": version,
+                "version_tuple": list(parse_version_tuple(version)),
+                "source": source,
+                "selected": False,
+            }
+        )
+
+    if not rows:
+        raise FileNotFoundError("qrenderdoc.exe not found; use --qrenderdoc-path or install RenderDoc")
+
+    rows.sort(key=lambda row: (tuple(row["version_tuple"]), row["path"].lower()), reverse=True)
+    rows[0]["selected"] = True
+    chosen = Path(rows[0]["path"])
+    return chosen, f"highest_detected_version:{rows[0]['source']}", rows
 
 
 def build_ui_script(config_b64: str) -> str:
@@ -87,14 +128,20 @@ result = {
     "shader": {
         "original_resource_id": "",
         "replacement_resource_id": "",
+        "post_replace_shader_resource_id": "",
+        "replace_target_resource_id": "",
+        "mode": "replace_resource",
         "entry_point": cfg.get("entry", "EditedShaderPS"),
         "compile_messages": "",
     },
     "output": {
         "resource_id": "",
+        "custom_shader_tex_id": "",
+        "display": {},
         "png_path": cfg.get("output_png", ""),
         "json_path": cfg.get("output_json", ""),
         "save_result": "",
+        "all_targets": [],
     },
 }
 
@@ -119,12 +166,103 @@ def enum_stage(name):
         return rd.ShaderStage.Domain
     raise RuntimeError("unsupported shader stage: " + stage)
 
-def first_valid_output_target(pipe_state):
-    for target in list(pipe_state.GetOutputTargets() or []):
+def valid_output_targets(pipe_state):
+    rows = []
+    for slot, target in enumerate(list(pipe_state.GetOutputTargets() or [])):
         resource = getattr(target, "resource", rd.ResourceId.Null())
-        if resource != rd.ResourceId.Null():
-            return target, resource
-    return None, rd.ResourceId.Null()
+        if resource == rd.ResourceId.Null():
+            continue
+        rows.append((slot, target, resource))
+    return rows
+
+def active_output_target(controller, pipe_state, fallback_targets):
+    try:
+        tex = controller.GetTextureData(rd.ResourceId.Null(), rd.Subresource(), rd.CompType.Typeless)
+    except Exception:
+        tex = None
+    if tex is not None:
+        try:
+            rid = getattr(tex, "resourceId", rd.ResourceId.Null())
+            if rid != rd.ResourceId.Null():
+                for slot, target, resource in fallback_targets:
+                    if resource == rid:
+                        return slot, target, resource
+        except Exception:
+            pass
+    return fallback_targets[0] if fallback_targets else None
+
+def save_target_png(controller, target, resource_id, png_path):
+    save = rd.TextureSave()
+    save.resourceId = resource_id
+    save.mip = int(getattr(target, "firstMip", 0) or 0)
+    save.slice.sliceIndex = int(getattr(target, "firstSlice", 0) or 0)
+    save.destType = rd.FileType.PNG
+    save.alpha = rd.AlphaMapping.Preserve
+    os.makedirs(os.path.dirname(png_path), exist_ok=True)
+    return controller.SaveTexture(save, png_path)
+
+def save_custom_shader_png(controller, event_id, texture_resource_id, custom_shader, png_path):
+    headless = rd.CreateHeadlessWindowingData(1334, 750)
+    output = controller.CreateOutput(headless, rd.ReplayOutputType.Texture)
+    try:
+        controller.SetFrameEvent(event_id, True)
+        tex = rd.TextureDisplay()
+        tex.resourceId = texture_resource_id
+        tex.typeCast = rd.CompType.Typeless
+        tex.overlay = rd.DebugOverlay.NoOverlay
+        tex.backgroundColor = rd.FloatVector(0.0, 0.0, 0.0, 1.0)
+        tex.red = True
+        tex.green = True
+        tex.blue = True
+        tex.alpha = False
+        tex.rawOutput = False
+        tex.decodeYUV = False
+        tex.rangeMin = 0.0
+        tex.rangeMax = 1.0
+        tex.scale = 1.0
+        tex.subresource = rd.Subresource()
+        tex.customShaderId = custom_shader
+        result["output"]["display"] = {
+            "resourceId": str(tex.resourceId),
+            "customShaderId": str(tex.customShaderId),
+            "rawOutput": bool(tex.rawOutput),
+            "decodeYUV": bool(tex.decodeYUV),
+            "rangeMin": float(tex.rangeMin),
+            "rangeMax": float(tex.rangeMax),
+            "scale": float(tex.scale),
+            "typeCast": str(tex.typeCast),
+        }
+        output.SetTextureDisplay(tex)
+        output.Display()
+        data = output.ReadbackOutputTexture()
+        os.makedirs(os.path.dirname(png_path), exist_ok=True)
+        custom_tex = output.GetCustomShaderTexID()
+        try:
+            from PIL import Image
+            if hasattr(data, "__len__") and len(data) > 0 and isinstance(data[0], int):
+                raw = bytes(data)
+                pixel_count = 1334 * 750
+                if len(raw) == pixel_count * 4:
+                    img = Image.frombytes("RGBA", (1334, 750), raw)
+                    img.save(png_path)
+                    return "<Result: 'Success'>", len(data), str(custom_tex)
+                if len(raw) == pixel_count * 3:
+                    img = Image.frombytes("RGB", (1334, 750), raw)
+                    img.save(png_path)
+                    return "<Result: 'Success'>", len(data), str(custom_tex)
+        except Exception:
+            pass
+        save = rd.TextureSave()
+        save.resourceId = custom_tex
+        save.destType = rd.FileType.PNG
+        save.alpha = rd.AlphaMapping.Preserve
+        save_result = controller.SaveTexture(save, png_path)
+        return save_result, len(data or []), str(custom_tex)
+    finally:
+        try:
+            output.Shutdown()
+        except Exception:
+            pass
 
 def replay_callback(controller):
     try:
@@ -136,13 +274,14 @@ def replay_callback(controller):
 
         stage_enum = enum_stage(cfg.get("stage", "pixel"))
         original_shader = pipe_state.GetShader(stage_enum)
+        replace_target = original_shader
         entry = str(cfg.get("entry", "EditedShaderPS") or "EditedShaderPS")
         result["shader"]["original_resource_id"] = str(original_shader)
         result["shader"]["entry_point"] = entry
 
         with open(cfg["shader_path"], "rb") as fp:
             source = fp.read()
-        replacement, messages = controller.BuildTargetShader(
+        replacement, messages = controller.BuildCustomShader(
             entry,
             rd.ShaderEncoding.HLSL,
             source,
@@ -154,26 +293,45 @@ def replay_callback(controller):
         if replacement == rd.ResourceId.Null():
             raise RuntimeError("BuildTargetShader failed: " + str(messages))
 
-        controller.ReplaceResource(original_shader, replacement)
-        controller.SetFrameEvent(event_id, True)
-        pipe_state = controller.GetPipelineState()
-        target, target_resource = first_valid_output_target(pipe_state)
-        result["output"]["resource_id"] = str(target_resource)
-        if target_resource == rd.ResourceId.Null():
+        result["shader"]["mode"] = "custom_shader_output"
+        targets = valid_output_targets(pipe_state)
+        if not targets:
             raise RuntimeError("no valid output render target at event")
-
-        save = rd.TextureSave()
-        save.resourceId = target_resource
-        save.mip = int(getattr(target, "firstMip", 0) or 0)
-        save.slice.sliceIndex = int(getattr(target, "firstSlice", 0) or 0)
-        save.destType = rd.FileType.PNG
-        save.alpha = rd.AlphaMapping.Preserve
-        os.makedirs(os.path.dirname(cfg["output_png"]), exist_ok=True)
-        save_result = controller.SaveTexture(save, cfg["output_png"])
+        chosen = active_output_target(controller, pipe_state, targets)
+        if chosen is None:
+            raise RuntimeError("no active output render target resolved at event")
+        slot0, target0, target_resource0 = chosen
+        result["output"]["resource_id"] = str(target_resource0)
+        result["output"]["selected_slot"] = int(slot0)
+        save_result, readback_len, custom_tex_id = save_custom_shader_png(
+            controller, event_id, target_resource0, replacement, cfg["output_png"]
+        )
         result["output"]["save_result"] = str(save_result)
+        result["output"]["readback_len"] = int(readback_len)
+        result["output"]["custom_shader_tex_id"] = str(custom_tex_id)
 
-        controller.RemoveReplacement(original_shader)
-        controller.FreeTargetResource(replacement)
+        output_base, output_ext = os.path.splitext(cfg["output_png"])
+        all_rows = []
+        for slot, target, resource_id in targets:
+            slot_png = f"{output_base}.slot{slot}{output_ext}"
+            slot_save_result, slot_readback_len, slot_custom_tex_id = save_custom_shader_png(
+                controller, event_id, resource_id, replacement, slot_png
+            )
+            all_rows.append(
+                {
+                    "slot": int(slot),
+                    "resource_id": str(resource_id),
+                    "first_mip": int(getattr(target, "firstMip", 0) or 0),
+                    "first_slice": int(getattr(target, "firstSlice", 0) or 0),
+                    "png_path": slot_png,
+                    "save_result": str(slot_save_result),
+                    "readback_len": int(slot_readback_len),
+                    "custom_shader_tex_id": str(slot_custom_tex_id),
+                }
+            )
+        result["output"]["all_targets"] = all_rows
+
+        controller.FreeCustomShader(replacement)
         result["status"] = "success"
     except Exception as exc:
         result["errors"].append(repr(exc))
@@ -241,6 +399,14 @@ def png_stats(path: Path) -> dict:
         }
 
 
+def collect_slot_png_stats(payload: dict) -> None:
+    output = payload.get("output", {})
+    rows = output.get("all_targets", []) or []
+    for row in rows:
+        png_path = row.get("png_path", "")
+        row["png_stats"] = png_stats(Path(png_path)) if png_path else {"available": False, "reason": "png_path_missing"}
+
+
 def is_json_ready(path: Path) -> bool:
     if not path.exists():
         return False
@@ -273,7 +439,7 @@ def main() -> int:
     if not shader_path.exists():
         raise FileNotFoundError(shader_path)
 
-    qrenderdoc_path = detect_qrenderdoc(args.qrenderdoc_path)
+    qrenderdoc_path, qrenderdoc_selection_reason, qrenderdoc_candidates = detect_qrenderdoc(args.qrenderdoc_path)
     renderdoc_version = detect_renderdoc_version(qrenderdoc_path)
     for stale_path in (output_json, output_png):
         try:
@@ -290,6 +456,8 @@ def main() -> int:
         "entry": args.entry,
         "qrenderdoc_path": str(qrenderdoc_path),
         "renderdoc_version": renderdoc_version,
+        "qrenderdoc_selection_reason": qrenderdoc_selection_reason,
+        "qrenderdoc_candidates": qrenderdoc_candidates,
     }
     cfg_b64 = base64.b64encode(json.dumps(cfg, ensure_ascii=False).encode("utf-8")).decode("ascii")
     script_text = build_ui_script(cfg_b64)
@@ -373,8 +541,13 @@ def main() -> int:
         "duration_sec": round(time.time() - started_at, 3),
         "terminated_after_output": bool(not timed_out and output_png.exists()),
         "timed_out": bool(timed_out),
+        "qrenderdoc_path": str(qrenderdoc_path),
+        "renderdoc_version": renderdoc_version,
+        "qrenderdoc_selection_reason": qrenderdoc_selection_reason,
+        "qrenderdoc_candidates": qrenderdoc_candidates,
     }
     payload["png_stats"] = png_stats(output_png)
+    collect_slot_png_stats(payload)
     write_json(output_json, payload)
     return 0 if payload.get("status") == "success" and output_png.exists() else 1
 
