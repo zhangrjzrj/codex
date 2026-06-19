@@ -1,0 +1,4 @@
+interface:
+  display_name: "Duomilu Recording Evidence"
+  short_description: "Record and verify Duomilu emulator test evidence."
+  default_prompt: "Record a Duomilu emulator test run and return verified video evidence."
