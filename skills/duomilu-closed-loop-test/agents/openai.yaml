@@ -1,0 +1,4 @@
+interface:
+  display_name: "Duomilu Closed Loop Test"
+  short_description: "Design and run Duomilu closed-loop tests."
+  default_prompt: "Run a Duomilu closed-loop test from case design through evidence-gated verification and ordinary bug self-fix."
