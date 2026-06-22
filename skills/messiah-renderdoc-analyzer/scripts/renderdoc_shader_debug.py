@@ -264,6 +264,54 @@ def save_custom_shader_png(controller, event_id, texture_resource_id, custom_sha
         except Exception:
             pass
 
+def save_display_png(controller, event_id, texture_resource_id, png_path):
+    headless = rd.CreateHeadlessWindowingData(1334, 750)
+    output = controller.CreateOutput(headless, rd.ReplayOutputType.Texture)
+    try:
+        controller.SetFrameEvent(event_id, True)
+        tex = rd.TextureDisplay()
+        tex.resourceId = texture_resource_id
+        tex.typeCast = rd.CompType.Typeless
+        tex.overlay = rd.DebugOverlay.NoOverlay
+        tex.backgroundColor = rd.FloatVector(0.0, 0.0, 0.0, 1.0)
+        tex.red = True
+        tex.green = True
+        tex.blue = True
+        tex.alpha = False
+        tex.rawOutput = False
+        tex.decodeYUV = False
+        tex.rangeMin = 0.0
+        tex.rangeMax = 1.0
+        tex.scale = 1.0
+        tex.subresource = rd.Subresource()
+        output.SetTextureDisplay(tex)
+        output.Display()
+        data = output.ReadbackOutputTexture()
+        os.makedirs(os.path.dirname(png_path), exist_ok=True)
+        try:
+            from PIL import Image
+            raw = bytes(data)
+            pixel_count = 1334 * 750
+            if len(raw) == pixel_count * 4:
+                Image.frombytes("RGBA", (1334, 750), raw).save(png_path)
+                return "<Result: 'Success'>", len(data)
+            if len(raw) == pixel_count * 3:
+                Image.frombytes("RGB", (1334, 750), raw).save(png_path)
+                return "<Result: 'Success'>", len(data)
+        except Exception:
+            pass
+        save = rd.TextureSave()
+        save.resourceId = output.GetCustomShaderTexID()
+        save.destType = rd.FileType.PNG
+        save.alpha = rd.AlphaMapping.Preserve
+        save_result = controller.SaveTexture(save, png_path)
+        return save_result, len(data or [])
+    finally:
+        try:
+            output.Shutdown()
+        except Exception:
+            pass
+
 def replay_callback(controller):
     try:
         event_id = int(cfg["event_id"])
@@ -275,17 +323,35 @@ def replay_callback(controller):
         stage_enum = enum_stage(cfg.get("stage", "pixel"))
         original_shader = pipe_state.GetShader(stage_enum)
         replace_target = original_shader
-        entry = str(cfg.get("entry", "EditedShaderPS") or "EditedShaderPS")
+        mode = str(cfg.get("mode", "custom_shader_output") or "custom_shader_output")
+        requested_entry = str(cfg.get("entry", "") or "")
+        compile_flags = rd.ShaderCompileFlags()
+        if mode == "replace_resource":
+            reflection = pipe_state.GetShaderReflection(stage_enum)
+            entry = requested_entry or str(getattr(reflection, "entryPoint", "") or "")
+            debug_info = getattr(reflection, "debugInfo", None)
+            if debug_info is not None:
+                compile_flags = getattr(debug_info, "compileFlags", compile_flags)
+                entry = requested_entry or str(getattr(debug_info, "entrySourceName", "") or entry)
+        else:
+            entry = requested_entry or "EditedShaderPS"
+        if not entry:
+            entry = "main"
         result["shader"]["original_resource_id"] = str(original_shader)
         result["shader"]["entry_point"] = entry
+        result["shader"]["compile_flags"] = [
+            {"name": str(flag.name), "value": str(flag.value)}
+            for flag in getattr(compile_flags, "flags", [])
+        ]
 
         with open(cfg["shader_path"], "rb") as fp:
             source = fp.read()
-        replacement, messages = controller.BuildCustomShader(
+        build_func = controller.BuildTargetShader if mode == "replace_resource" else controller.BuildCustomShader
+        replacement, messages = build_func(
             entry,
             rd.ShaderEncoding.HLSL,
             source,
-            rd.ShaderCompileFlags(),
+            compile_flags,
             stage_enum,
         )
         result["shader"]["replacement_resource_id"] = str(replacement)
@@ -293,7 +359,7 @@ def replay_callback(controller):
         if replacement == rd.ResourceId.Null():
             raise RuntimeError("BuildTargetShader failed: " + str(messages))
 
-        result["shader"]["mode"] = "custom_shader_output"
+        result["shader"]["mode"] = mode
         targets = valid_output_targets(pipe_state)
         if not targets:
             raise RuntimeError("no valid output render target at event")
@@ -303,35 +369,75 @@ def replay_callback(controller):
         slot0, target0, target_resource0 = chosen
         result["output"]["resource_id"] = str(target_resource0)
         result["output"]["selected_slot"] = int(slot0)
-        save_result, readback_len, custom_tex_id = save_custom_shader_png(
-            controller, event_id, target_resource0, replacement, cfg["output_png"]
-        )
-        result["output"]["save_result"] = str(save_result)
-        result["output"]["readback_len"] = int(readback_len)
-        result["output"]["custom_shader_tex_id"] = str(custom_tex_id)
 
         output_base, output_ext = os.path.splitext(cfg["output_png"])
         all_rows = []
-        for slot, target, resource_id in targets:
-            slot_png = f"{output_base}.slot{slot}{output_ext}"
-            slot_save_result, slot_readback_len, slot_custom_tex_id = save_custom_shader_png(
-                controller, event_id, resource_id, replacement, slot_png
-            )
-            all_rows.append(
-                {
-                    "slot": int(slot),
-                    "resource_id": str(resource_id),
-                    "first_mip": int(getattr(target, "firstMip", 0) or 0),
-                    "first_slice": int(getattr(target, "firstSlice", 0) or 0),
-                    "png_path": slot_png,
-                    "save_result": str(slot_save_result),
-                    "readback_len": int(slot_readback_len),
-                    "custom_shader_tex_id": str(slot_custom_tex_id),
-                }
-            )
+        try:
+            if mode == "replace_resource":
+                result["shader"]["replace_target_resource_id"] = str(replace_target)
+                controller.ReplaceResource(replace_target, replacement)
+                controller.SetFrameEvent(event_id, True)
+                save_result, display_readback_len = save_display_png(
+                    controller, event_id, target_resource0, cfg["output_png"]
+                )
+                result["output"]["save_result"] = str(save_result)
+                result["output"]["readback_len"] = int(display_readback_len)
+                for slot, target, resource_id in targets:
+                    slot_png = f"{output_base}.slot{slot}{output_ext}"
+                    slot_save_result, slot_readback_len = save_display_png(
+                        controller, event_id, resource_id, slot_png
+                    )
+                    all_rows.append(
+                        {
+                            "slot": int(slot),
+                            "resource_id": str(resource_id),
+                            "first_mip": int(getattr(target, "firstMip", 0) or 0),
+                            "first_slice": int(getattr(target, "firstSlice", 0) or 0),
+                            "png_path": slot_png,
+                            "save_result": str(slot_save_result),
+                            "readback_len": int(slot_readback_len),
+                            "custom_shader_tex_id": "",
+                        }
+                    )
+            else:
+                save_result, readback_len, custom_tex_id = save_custom_shader_png(
+                    controller, event_id, target_resource0, replacement, cfg["output_png"]
+                )
+                result["output"]["save_result"] = str(save_result)
+                result["output"]["readback_len"] = int(readback_len)
+                result["output"]["custom_shader_tex_id"] = str(custom_tex_id)
+                for slot, target, resource_id in targets:
+                    slot_png = f"{output_base}.slot{slot}{output_ext}"
+                    slot_save_result, slot_readback_len, slot_custom_tex_id = save_custom_shader_png(
+                        controller, event_id, resource_id, replacement, slot_png
+                    )
+                    all_rows.append(
+                        {
+                            "slot": int(slot),
+                            "resource_id": str(resource_id),
+                            "first_mip": int(getattr(target, "firstMip", 0) or 0),
+                            "first_slice": int(getattr(target, "firstSlice", 0) or 0),
+                            "png_path": slot_png,
+                            "save_result": str(slot_save_result),
+                            "readback_len": int(slot_readback_len),
+                            "custom_shader_tex_id": str(slot_custom_tex_id),
+                        }
+                    )
+        finally:
+            if mode == "replace_resource":
+                try:
+                    controller.RemoveReplacement(replace_target)
+                except Exception:
+                    pass
+                controller.FreeTargetResource(replacement)
+            else:
+                controller.FreeCustomShader(replacement)
+        if mode == "replace_resource":
+                result["shader"]["post_replace_shader_resource_id"] = str(
+                    controller.GetPipelineState().GetShader(stage_enum)
+                )
         result["output"]["all_targets"] = all_rows
 
-        controller.FreeCustomShader(replacement)
         result["status"] = "success"
     except Exception as exc:
         result["errors"].append(repr(exc))
@@ -425,7 +531,8 @@ def main() -> int:
     parser.add_argument("--output-png", required=True)
     parser.add_argument("--output-json", required=True)
     parser.add_argument("--stage", default="pixel")
-    parser.add_argument("--entry", default="EditedShaderPS")
+    parser.add_argument("--entry", default="")
+    parser.add_argument("--mode", choices=("custom_shader_output", "replace_resource"), default="custom_shader_output")
     parser.add_argument("--qrenderdoc-path", default="")
     parser.add_argument("--timeout-sec", type=float, default=120.0)
     args = parser.parse_args()
@@ -454,6 +561,7 @@ def main() -> int:
         "output_json": str(output_json),
         "stage": args.stage,
         "entry": args.entry,
+        "mode": args.mode,
         "qrenderdoc_path": str(qrenderdoc_path),
         "renderdoc_version": renderdoc_version,
         "qrenderdoc_selection_reason": qrenderdoc_selection_reason,

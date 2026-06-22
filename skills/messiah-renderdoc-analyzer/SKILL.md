@@ -53,7 +53,9 @@ Use this when the user has an `.rdc`, an event id, and a replacement HLSL stub s
 
 2. Run `renderdoc_shader_debug.py`.
 - It launches `qrenderdoc.exe --ui-python`.
-- It uses RenderDoc replay APIs: `BuildTargetShader`, `ReplaceResource`, `SetFrameEvent`, and `SaveTexture`.
+- Default mode uses RenderDoc replay APIs: `BuildCustomShader`, `SetFrameEvent`, `CreateOutput`, `TextureDisplay.customShaderId`, and PNG readback.
+- Optional `--mode replace_resource` uses `BuildTargetShader` and `ReplaceResource`; for target shader replacement it automatically reuses the original shader entry point and compile flags unless `--entry` is explicitly provided.
+- Always verify shader replacement with PNG statistics; a wrong entry point can compile or fail in ways that do not represent the target pass.
 - It does not modify the `.rdc` file; replacement is temporary during replay.
 
 3. Read the output JSON before interpreting the PNG.
