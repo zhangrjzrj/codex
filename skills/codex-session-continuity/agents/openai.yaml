@@ -1,4 +1,0 @@
-interface:
-  display_name: "Codex Session Continuity"
-  short_description: "Checkpoint and resume Codex project work across restarts."
-  default_prompt: "Save a checkpoint for the current Codex task, then start a fresh Codex session that restores project memory and continues from the next action."
