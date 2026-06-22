@@ -1,15 +1,17 @@
 ---
-name: web-playwright-operator
-description: Use this when the user wants Codex to automatically operate Chrome/Chromium on a website (open URL, read text and images via screenshots/downloads, and click/type) using Python Playwright, including a login-first flow for sites with captcha.
+name: "web-playwright-operator"
+description: "Low-priority fallback for fixed, repeatable, one-shot website batch automation using Python Playwright steps. Use only when the user wants Codex to run a predefined URL/action script, scrape/download artifacts in a deterministic batch, or repeat the same web flow headlessly. Prefer web-browser-session for live pages, login-heavy sites, uncertain UI, multi-tab browsing, iterative reading, or returning later to the same browser session."
 ---
 
 # Web Playwright Operator
 
 ## What this skill is for
 
-When the user gives a URL and asks you to **read page content (including images)** and **click buttons / fill forms** to complete a task automatically.
+Use this as a low-priority fallback when the user gives a fixed URL and a predictable set of actions that should run as a batch.
 
 This skill uses **Python + Playwright (Chromium)** via bundled scripts.
+
+Prefer `web-browser-session` for ordinary web operation. Use this skill only when the flow is stable enough to express as `steps.json` and the browser can close after the run.
 
 ## Guardrails
 

@@ -1,15 +1,17 @@
 ---
 name: "web-browser-session"
-description: "Operate a live Chromium browser session through CDP/Playwright when Codex needs to understand JavaScript-rendered pages, preserve login state, inspect tabs, extract runtime DOM semantics, read page text/HTML, and perform browser actions such as navigate, click, fill, press, or switch tabs. Use for internal docs, web apps, multi-tab browsing, login-first flows, and DOM-first page understanding where screenshots should be a fallback rather than the primary input."
+description: "Default browser automation skill. Operate a persistent live Chromium/Chrome session through CDP/Playwright when Codex needs to understand JavaScript-rendered pages, preserve login state, return later to the same browser, inspect tabs, extract runtime DOM semantics, read page text/HTML, or perform browser actions such as navigate, click, fill, press, or switch tabs. Use for internal docs, web apps, multi-tab browsing, login-first flows, iterative page understanding, and long-lived sessions; prefer this over one-shot Playwright automation unless the task is a fixed repeatable batch flow."
 ---
 
 # Web Browser Session
 
 ## Purpose
 
-Use this skill to keep a browser open, attach to it repeatedly, understand the current JavaScript-rendered DOM, and operate the page from structured semantic snapshots.
+Use this skill as the default way to operate websites. Keep a browser open, attach to it repeatedly, understand the current JavaScript-rendered DOM, and operate the page from structured semantic snapshots.
 
-Prefer this skill over one-shot browser automation when the task requires login persistence, multi-step browsing, multi-tab inspection, or iterative page understanding.
+Prefer this skill over one-shot browser automation when the task requires login persistence, multi-step browsing, multi-tab inspection, iterative page understanding, user-assisted login, or returning later to the same browser after doing other Codex work.
+
+Use one-shot Playwright batch automation only when the full flow is fixed, repeatable, and does not need interactive observation between steps.
 
 ## Core Workflow
 
