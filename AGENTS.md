@@ -74,17 +74,6 @@
 - 如果发现明确致命弹窗、进程无响应、日志长期不推进或超过本轮超时，应记录 PID、进程路径、窗口标题/正文、最近日志后终止目标进程。
 - 熔断后，Codex 应基于本轮收集的证据继续分析，不应停在“等待用户手动关窗”。
 
-## 3.2 Codex 本地终端输入通道保护
-- Codex 在当前终端中只允许直接执行一次性、可自动退出的 WSL 命令。
-- 禁止在 Codex 当前终端进入交互式 WSL shell，例如直接运行 `wsl`、`wsl -d Ubuntu-22.04`、`bash`。
-- 禁止以前台方式启动长驻服务，例如 Chrome、Xvfb、dev server、adb shell、ssh、python REPL、node REPL。
-- 需要启动 WSL 内长驻服务时，必须后台化并脱离当前控制台：
-  - Windows 侧优先用 `Start-Process -WindowStyle Hidden`
-  - 记录 PID、端口、日志路径
-  - 日志写入 ignored 本地 artifacts/logs 目录
-- 用户需要手动操作 WSL、ssh 或 adb shell 时，必须另开 Windows Terminal 标签页，不复用 Codex 当前窗口。
-- 若发现当前命令疑似占住输入通道，应先中断或退出前台进程，再继续对话。
-
 ## 4. 会话记忆落盘（项目内）
 - 每轮结束前落盘“当前进度 + 关键结论 + 下一步建议”。
 - 记忆路径固定：`.codex-memory/`（不存在可自动创建）。
