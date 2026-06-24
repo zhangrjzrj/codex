@@ -1,0 +1,4 @@
+interface:
+  display_name: "Windows UIA Operator"
+  short_description: "Inspect and operate Windows UI controls"
+  default_prompt: "Use $windows-uia-operator to inspect a Windows dialog and click a button without using real mouse input."
