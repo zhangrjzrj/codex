@@ -1,0 +1,3 @@
+display_name: "UE Asset Diff"
+short_description: "Export UE assets to JSON and diff them."
+default_prompt: "Use this skill to export Unreal Engine map or sequence assets into normalized JSON snapshots and compare them across project copies."
