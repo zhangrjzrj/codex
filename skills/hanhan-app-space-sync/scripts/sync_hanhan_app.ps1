@@ -11,6 +11,9 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+if ($null -ne (Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue)) {
+    $PSNativeCommandUseErrorActionPreference = $false
+}
 
 $defaultPreservePaths = @(
     'config/localDebug.js',
@@ -21,16 +24,32 @@ $defaultPreservePaths = @(
     'scripts/send_duomilu_prompt.ps1'
 )
 
+$skipPromotePaths = @(
+    '背景.txt'
+)
+
 function Invoke-Git {
     param(
         [string]$Repo,
-        [string[]]$Args,
+        [string[]]$GitArgs,
         [switch]$AllowFailure
     )
-    $output = & git -C $Repo @Args 2>&1
-    $code = $LASTEXITCODE
+    $tempBase = Join-Path ([System.IO.Path]::GetTempPath()) ("hanhan-git-" + [guid]::NewGuid().ToString("N"))
+    $stdoutPath = "$tempBase.out"
+    $stderrPath = "$tempBase.err"
+    try {
+        $argumentList = @('-c', 'core.quotePath=false', '-C', $Repo) + $GitArgs
+        $process = Start-Process -FilePath 'git' -ArgumentList $argumentList -Wait -PassThru -NoNewWindow -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+        $code = $process.ExitCode
+        $stdout = if (Test-Path $stdoutPath) { Get-Content -Raw $stdoutPath } else { '' }
+        $stderr = if (Test-Path $stderrPath) { Get-Content -Raw $stderrPath } else { '' }
+        $output = @($stdout, $stderr) -join ''
+    }
+    finally {
+        Remove-Item -LiteralPath $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
+    }
     if (-not $AllowFailure -and $code -ne 0) {
-        throw "git -C $Repo $($Args -join ' ') failed.`n$output"
+        throw "git -C $Repo $($GitArgs -join ' ') failed.`n$output"
     }
     return [pscustomobject]@{
         Code = $code
@@ -42,8 +61,28 @@ function Test-PreservedPath {
     param(
         [string]$Path
     )
+    $normalizedPath = ''
+    if (-not [string]::IsNullOrWhiteSpace($Path)) {
+        $normalizedPath = $Path.Trim()
+    }
     foreach ($item in $defaultPreservePaths) {
-        if ($Path -ieq $item) {
+        if ($normalizedPath -ieq $item) {
+            return $true
+        }
+    }
+    return $false
+}
+
+function Test-SkipPromotePath {
+    param(
+        [string]$Path
+    )
+    $normalizedPath = ''
+    if (-not [string]::IsNullOrWhiteSpace($Path)) {
+        $normalizedPath = $Path.Trim()
+    }
+    foreach ($item in $skipPromotePaths) {
+        if ($normalizedPath -ieq $item) {
             return $true
         }
     }
@@ -55,7 +94,7 @@ function Get-CommitFiles {
         [string]$Repo,
         [string]$Commit
     )
-    $result = Invoke-Git -Repo $Repo -Args @('show', '--pretty=format:', '--name-only', $Commit)
+    $result = Invoke-Git -Repo $Repo -GitArgs @('show', '--pretty=format:', '--name-only', $Commit)
     if ([string]::IsNullOrWhiteSpace($result.Output)) {
         return @()
     }
@@ -67,7 +106,7 @@ function Get-CommitSubject {
         [string]$Repo,
         [string]$Commit
     )
-    return (Invoke-Git -Repo $Repo -Args @('show', '-s', '--format=%s', $Commit)).Output
+    return (Invoke-Git -Repo $Repo -GitArgs @('show', '-s', '--format=%s', $Commit)).Output
 }
 
 function Get-CommitBodyFile {
@@ -76,7 +115,7 @@ function Get-CommitBodyFile {
         [string]$Commit,
         [string]$Dir
     )
-    $message = (Invoke-Git -Repo $Repo -Args @('show', '-s', '--format=%B', $Commit)).Output
+    $message = (Invoke-Git -Repo $Repo -GitArgs @('show', '-s', '--format=%B', $Commit)).Output
     $path = Join-Path $Dir "$Commit-message.txt"
     Set-Content -LiteralPath $path -Value $message -Encoding UTF8
     return $path
@@ -86,13 +125,13 @@ function Get-DirtyEntries {
     param(
         [string]$Repo
     )
-    $result = Invoke-Git -Repo $Repo -Args @('status', '--porcelain')
+    $result = Invoke-Git -Repo $Repo -GitArgs @('status', '--porcelain')
     if ([string]::IsNullOrWhiteSpace($result.Output)) {
         return @()
     }
     return @($result.Output -split "`r?`n" | Where-Object { $_.Trim() -ne '' } | ForEach-Object {
             $line = $_
-            $path = $line.Substring(3)
+            $path = ([string]$line.Substring(3)).Trim()
             [pscustomobject]@{
                 Raw = $line
                 Path = $path
@@ -114,7 +153,7 @@ function Invoke-Inventory {
     $rows = @()
     foreach ($name in $Spaces) {
         $spacePath = Join-Path $Root $name
-        $aheadBehind = (Invoke-Git -Repo $MainPath -Args @('rev-list', '--left-right', '--count', "HEAD...local_$name/$Branch")).Output
+        $aheadBehind = (Invoke-Git -Repo $MainPath -GitArgs @('rev-list', '--left-right', '--count', "HEAD...local_$name/$Branch")).Output
         $rows += [pscustomobject]@{
             space = $name
             main_vs_space = $aheadBehind
@@ -132,54 +171,69 @@ function Invoke-PromoteMain {
     $tempMain = Join-Path $tempRoot 'app-main'
     try {
         & git clone --shared $MainPath $tempMain | Out-Null
-        Invoke-Git -Repo $tempMain -Args @('checkout', '-B', $Branch, $Branch) | Out-Null
-        Invoke-Git -Repo $tempMain -Args @('fetch', $SharedRemote, $Branch) | Out-Null
+        $sharedRemoteUrl = (Invoke-Git -Repo $MainPath -GitArgs @('remote', 'get-url', $SharedRemote)).Output
+        $tempRemoteCheck = Invoke-Git -Repo $tempMain -GitArgs @('remote', 'get-url', $SharedRemote) -AllowFailure
+        if ($tempRemoteCheck.Code -ne 0) {
+            Invoke-Git -Repo $tempMain -GitArgs @('remote', 'add', $SharedRemote, $sharedRemoteUrl) | Out-Null
+        }
+        Invoke-Git -Repo $tempMain -GitArgs @('checkout', '-B', $Branch, $Branch) | Out-Null
+        Invoke-Git -Repo $tempMain -GitArgs @('fetch', $SharedRemote, $Branch) | Out-Null
         foreach ($name in $Spaces) {
             $spacePath = Join-Path $Root $name
             $remoteName = "src_$name"
-            $hasRemote = Invoke-Git -Repo $tempMain -Args @('remote', 'get-url', $remoteName) -AllowFailure
+            $hasRemote = Invoke-Git -Repo $tempMain -GitArgs @('remote', 'get-url', $remoteName) -AllowFailure
             if ($hasRemote.Code -ne 0) {
-                Invoke-Git -Repo $tempMain -Args @('remote', 'add', $remoteName, $spacePath) | Out-Null
+                Invoke-Git -Repo $tempMain -GitArgs @('remote', 'add', $remoteName, $spacePath) | Out-Null
             }
-            Invoke-Git -Repo $tempMain -Args @('fetch', $remoteName, $Branch) | Out-Null
+            Invoke-Git -Repo $tempMain -GitArgs @('fetch', $remoteName, $Branch) | Out-Null
         }
 
         $actions = @()
         foreach ($name in $Spaces) {
             $remoteName = "src_$name"
-            $commitList = (Invoke-Git -Repo $tempMain -Args @('rev-list', '--reverse', "$Branch..$remoteName/$Branch")).Output
+            $commitList = (Invoke-Git -Repo $tempMain -GitArgs @('rev-list', '--reverse', '--right-only', '--cherry-pick', "$Branch...$remoteName/$Branch")).Output
             if ([string]::IsNullOrWhiteSpace($commitList)) {
                 continue
             }
             foreach ($commit in ($commitList -split "`r?`n" | Where-Object { $_.Trim() -ne '' })) {
+                $subject = Get-CommitSubject -Repo $tempMain -Commit $commit
+                if ($subject -match '背景文档|背景入口|标准发布流程') {
+                    $actions += [pscustomobject]@{ space = $name; commit = $commit; action = 'skip-background-doc-history'; subject = $subject }
+                    continue
+                }
                 $files = Get-CommitFiles -Repo $tempMain -Commit $commit
+                $nonSkippedFiles = @($files | Where-Object { -not (Test-SkipPromotePath -Path $_) })
+                if ($nonSkippedFiles.Count -eq 0) {
+                    $actions += [pscustomobject]@{ space = $name; commit = $commit; action = 'skip-deprecated-path-only'; subject = $subject }
+                    continue
+                }
                 $sharedFiles = @($files | Where-Object { -not (Test-PreservedPath -Path $_) })
                 if ($sharedFiles.Count -eq 0) {
-                    $actions += [pscustomobject]@{ space = $name; commit = $commit; action = 'skip-local-only'; subject = (Get-CommitSubject -Repo $tempMain -Commit $commit) }
+                    $actions += [pscustomobject]@{ space = $name; commit = $commit; action = 'skip-local-only'; subject = $subject }
                     continue
                 }
 
-                Invoke-Git -Repo $tempMain -Args @('cherry-pick', '--no-commit', $commit) | Out-Null
+                Invoke-Git -Repo $tempMain -GitArgs @('cherry-pick', '--no-commit', $commit) | Out-Null
                 $restoreTargets = @($files | Where-Object { Test-PreservedPath -Path $_ })
                 if ($restoreTargets.Count -gt 0) {
-                    Invoke-Git -Repo $tempMain -Args (@('restore', '--source=HEAD', '--staged', '--worktree', '--') + $restoreTargets) | Out-Null
+                    Invoke-Git -Repo $tempMain -GitArgs (@('restore', '--source=HEAD', '--staged', '--worktree', '--') + $restoreTargets) | Out-Null
                 }
 
-                $staged = (Invoke-Git -Repo $tempMain -Args @('diff', '--cached', '--name-only')).Output
+                $staged = (Invoke-Git -Repo $tempMain -GitArgs @('diff', '--cached', '--name-only')).Output
                 if ([string]::IsNullOrWhiteSpace($staged)) {
-                    Invoke-Git -Repo $tempMain -Args @('reset', '--hard', 'HEAD') | Out-Null
-                    $actions += [pscustomobject]@{ space = $name; commit = $commit; action = 'skip-empty-after-filter'; subject = (Get-CommitSubject -Repo $tempMain -Commit $commit) }
+                    Invoke-Git -Repo $tempMain -GitArgs @('reset', '--hard', 'HEAD') | Out-Null
+                    $actions += [pscustomobject]@{ space = $name; commit = $commit; action = 'skip-empty-after-filter'; subject = $subject }
                     continue
                 }
 
                 $messageFile = Get-CommitBodyFile -Repo $tempMain -Commit $commit -Dir $tempRoot
-                Invoke-Git -Repo $tempMain -Args @('commit', '--file', $messageFile) | Out-Null
-                $actions += [pscustomobject]@{ space = $name; commit = $commit; action = 'promoted'; subject = (Get-CommitSubject -Repo $tempMain -Commit $commit) }
+                Invoke-Git -Repo $tempMain -GitArgs @('commit', '--file', $messageFile) | Out-Null
+                $actions += [pscustomobject]@{ space = $name; commit = $commit; action = 'promoted'; subject = $subject }
             }
         }
 
         if ($Push) {
-            Invoke-Git -Repo $tempMain -Args @('push', $SharedRemote, "${Branch}:$Branch") | Out-Null
+            Invoke-Git -Repo $tempMain -GitArgs @('push', $SharedRemote, "${Branch}:$Branch") | Out-Null
         }
 
         return $actions
@@ -197,7 +251,7 @@ function Invoke-RefreshSpace {
     }
     $spacePath = Join-Path $Root $Space
     $dirtyEntries = Get-DirtyEntries -Repo $spacePath
-    $dirtyNonPreserved = @($dirtyEntries | Where-Object { -not $_.Preserved })
+    $dirtyNonPreserved = @($dirtyEntries | Where-Object { -not (Test-PreservedPath -Path $_.Path) })
     if ($dirtyNonPreserved.Count -gt 0) {
         throw "Workspace $Space has dirty non-preserved files and cannot be refreshed safely.`n$($dirtyNonPreserved.Raw -join "`n")"
     }
@@ -206,13 +260,13 @@ function Invoke-RefreshSpace {
     try {
         if ($dirtyEntries.Count -gt 0) {
             $paths = @($dirtyEntries | Select-Object -ExpandProperty Path -Unique)
-            Invoke-Git -Repo $spacePath -Args (@('stash', 'push', '-m', "hanhan-app-space-sync-$Space") + @('--') + $paths) | Out-Null
+            Invoke-Git -Repo $spacePath -GitArgs (@('stash', 'push', '-m', "hanhan-app-space-sync-$Space") + @('--') + $paths) | Out-Null
             $stashCreated = $true
         }
-        Invoke-Git -Repo $spacePath -Args @('fetch', 'origin', $Branch) | Out-Null
-        Invoke-Git -Repo $spacePath -Args @('rebase', "origin/$Branch") | Out-Null
+        Invoke-Git -Repo $spacePath -GitArgs @('fetch', 'origin', $Branch) | Out-Null
+        Invoke-Git -Repo $spacePath -GitArgs @('rebase', "origin/$Branch") | Out-Null
         if ($stashCreated) {
-            $pop = Invoke-Git -Repo $spacePath -Args @('stash', 'pop') -AllowFailure
+            $pop = Invoke-Git -Repo $spacePath -GitArgs @('stash', 'pop') -AllowFailure
             if ($pop.Code -ne 0) {
                 throw "stash pop failed for $Space.`n$($pop.Output)"
             }
@@ -226,7 +280,7 @@ function Invoke-RefreshSpace {
     catch {
         $rebaseState = Join-Path $spacePath '.git\rebase-merge'
         if (Test-Path $rebaseState) {
-            Invoke-Git -Repo $spacePath -Args @('rebase', '--abort') -AllowFailure | Out-Null
+            Invoke-Git -Repo $spacePath -GitArgs @('rebase', '--abort') -AllowFailure | Out-Null
         }
         throw
     }
