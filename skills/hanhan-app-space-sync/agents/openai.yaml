@@ -1,0 +1,4 @@
+interface:
+  display_name: "Hanhan App Sync"
+  short_description: "Sync hanhan app spaces safely."
+  default_prompt: "Use $hanhan-app-space-sync to promote shared app-space commits into hanhan/app and refresh a target app workspace while preserving local config."
