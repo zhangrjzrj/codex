@@ -52,7 +52,7 @@ def normalize_value(value):
 
 def export_actor(actor):
     location = actor.get_actor_location()
-    rotation = actor.get_actor_rotation().euler()
+    rotation = actor.get_actor_rotation()
     scale = actor.get_actor_scale3d()
     return {
         "label": actor.get_actor_label(),
@@ -61,7 +61,7 @@ def export_actor(actor):
         "tags": sorted(str(tag) for tag in actor.tags),
         "hidden_in_game": bool(actor.hidden),
         "location": [round(location.x, 4), round(location.y, 4), round(location.z, 4)],
-        "rotation": [round(rotation.x, 4), round(rotation.y, 4), round(rotation.z, 4)],
+        "rotation": [round(rotation.roll, 4), round(rotation.pitch, 4), round(rotation.yaw, 4)],
         "scale": [round(scale.x, 4), round(scale.y, 4), round(scale.z, 4)],
     }
 
@@ -122,14 +122,22 @@ def export_sequence_snapshot(sequence):
     movie_scene = sequence.get_movie_scene()
     bindings = [export_binding(binding) for binding in sequence.get_bindings()]
     bindings.sort(key=lambda item: item["name"])
-    master_tracks = [export_track(track) for track in movie_scene.get_master_tracks()]
+    get_master_tracks = getattr(movie_scene, "get_master_tracks", None)
+    if callable(get_master_tracks):
+        raw_master_tracks = get_master_tracks()
+    else:
+        raw_master_tracks = []
+    master_tracks = [export_track(track) for track in raw_master_tracks]
     master_tracks.sort(key=lambda item: (item["class"], item["display_name"]))
+    get_display_rate = getattr(movie_scene, "get_display_rate", None)
+    get_tick_resolution = getattr(movie_scene, "get_tick_resolution", None)
+    get_playback_range = getattr(movie_scene, "get_playback_range", None)
     return {
         "asset_path": ASSET_PATH,
         "asset_type": "LevelSequence",
-        "display_rate": str(movie_scene.get_display_rate()),
-        "tick_resolution": str(movie_scene.get_tick_resolution()),
-        "playback_range": str(movie_scene.get_playback_range()),
+        "display_rate": str(get_display_rate()) if callable(get_display_rate) else "",
+        "tick_resolution": str(get_tick_resolution()) if callable(get_tick_resolution) else "",
+        "playback_range": str(get_playback_range()) if callable(get_playback_range) else "",
         "binding_count": len(bindings),
         "bindings": bindings,
         "master_tracks": master_tracks,

@@ -45,6 +45,8 @@ installation_id
 version.json
 state_*.sqlite*
 logs_*.sqlite*
+hooks.json
+reboot-restore/
 
 # OS
 .DS_Store
