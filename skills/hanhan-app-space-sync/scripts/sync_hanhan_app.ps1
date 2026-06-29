@@ -28,6 +28,22 @@ $skipPromotePaths = @(
     '背景.txt'
 )
 
+$defaultSharedPathPrefixes = @(
+    'api/',
+    'common/',
+    'components/',
+    'config/',
+    'docs/',
+    'hybrid/',
+    'js_sdk/',
+    'pages/',
+    'static/',
+    'store/',
+    'uni_modules/',
+    'uniCloud/',
+    'utils/'
+)
+
 function Invoke-Git {
     param(
         [string]$Repo,
@@ -67,6 +83,28 @@ function Test-PreservedPath {
     }
     foreach ($item in $defaultPreservePaths) {
         if ($normalizedPath -ieq $item) {
+            return $true
+        }
+    }
+    return $false
+}
+
+function Test-SharedPath {
+    param(
+        [string]$Path
+    )
+    $normalizedPath = ([string]$Path).Trim().Replace('\', '/')
+    if ([string]::IsNullOrWhiteSpace($normalizedPath)) {
+        return $false
+    }
+    foreach ($item in $defaultPreservePaths) {
+        $normalizedPreserve = $item.Replace('\', '/')
+        if ($normalizedPath -ieq $normalizedPreserve) {
+            return $true
+        }
+    }
+    foreach ($prefix in $defaultSharedPathPrefixes) {
+        if ($normalizedPath.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
             return $true
         }
     }
@@ -131,13 +169,76 @@ function Get-DirtyEntries {
     }
     return @($result.Output -split "`r?`n" | Where-Object { $_.Trim() -ne '' } | ForEach-Object {
             $line = $_
-            $path = ([string]$line.Substring(3)).Trim()
+            $path = $line
+            if ($line.Length -ge 3 -and $line[2] -eq ' ') {
+                $path = $line.Substring(3)
+            }
+            elseif ($line.Length -ge 2 -and $line[1] -eq ' ') {
+                $path = $line.Substring(2)
+            }
+            $path = ([string]$path).Trim()
+            if ($path -match '^(.*)\s+->\s+(.*)$') {
+                $path = $Matches[2].Trim()
+            }
             [pscustomobject]@{
                 Raw = $line
                 Path = $path
                 Preserved = (Test-PreservedPath -Path $path)
             }
         })
+}
+
+function Get-UnclassifiedPaths {
+    param(
+        [string]$Repo
+    )
+    $result = Invoke-Git -Repo $Repo -GitArgs @('ls-files', '--others', '--exclude-standard')
+    if ([string]::IsNullOrWhiteSpace($result.Output)) {
+        return @()
+    }
+    return @(
+        $result.Output -split "`r?`n" |
+        Where-Object { $_.Trim() -ne '' } |
+        ForEach-Object {
+            $path = ([string]$_).Trim().Replace('\', '/')
+            if ((Test-PreservedPath -Path $path) -or (Test-SharedPath -Path $path) -or (Test-SkipPromotePath -Path $path)) {
+                return
+            }
+            [pscustomobject]@{
+                Path = $path
+                Classification = 'unclassified-untracked'
+            }
+        } |
+        Where-Object { $null -ne $_ }
+    )
+}
+
+function Get-SpaceRiskReport {
+    param(
+        [string]$MainPath,
+        [string]$SpaceName
+    )
+    $spacePath = Join-Path $Root $SpaceName
+    $trackedDiff = Invoke-Git -Repo $spacePath -GitArgs @('diff', '--name-only', "$Branch..HEAD")
+    $paths = @()
+    if (-not [string]::IsNullOrWhiteSpace($trackedDiff.Output)) {
+        $paths += @($trackedDiff.Output -split "`r?`n" | Where-Object { $_.Trim() -ne '' })
+    }
+    $paths += @(Get-UnclassifiedPaths -Repo $spacePath | Select-Object -ExpandProperty Path)
+    $paths = @($paths | ForEach-Object { ([string]$_).Trim().Replace('\', '/') } | Where-Object { $_ -ne '' } | Sort-Object -Unique)
+
+    $unclassified = @()
+    foreach ($path in $paths) {
+        if ((Test-PreservedPath -Path $path) -or (Test-SharedPath -Path $path) -or (Test-SkipPromotePath -Path $path)) {
+            continue
+        }
+        $unclassified += $path
+    }
+
+    return [pscustomobject]@{
+        space = $SpaceName
+        unclassified_paths = $unclassified
+    }
 }
 
 function New-TempDir {
@@ -154,10 +255,12 @@ function Invoke-Inventory {
     foreach ($name in $Spaces) {
         $spacePath = Join-Path $Root $name
         $aheadBehind = (Invoke-Git -Repo $MainPath -GitArgs @('rev-list', '--left-right', '--count', "HEAD...local_$name/$Branch")).Output
+        $risk = Get-SpaceRiskReport -MainPath $MainPath -SpaceName $name
         $rows += [pscustomobject]@{
             space = $name
             main_vs_space = $aheadBehind
             dirty = (Get-DirtyEntries -Repo $spacePath).Count
+            unclassified_paths = $risk.unclassified_paths
         }
     }
     return $rows
@@ -180,6 +283,11 @@ function Invoke-PromoteMain {
         Invoke-Git -Repo $tempMain -GitArgs @('fetch', $SharedRemote, $Branch) | Out-Null
         foreach ($name in $Spaces) {
             $spacePath = Join-Path $Root $name
+            $risk = Get-SpaceRiskReport -MainPath $MainPath -SpaceName $name
+            if ($risk.unclassified_paths.Count -gt 0) {
+                $joined = $risk.unclassified_paths -join "`n"
+                throw "Workspace $name has unclassified paths. Classify them as shared or preserved before promote-main.`n$joined"
+            }
             $remoteName = "src_$name"
             $hasRemote = Invoke-Git -Repo $tempMain -GitArgs @('remote', 'get-url', $remoteName) -AllowFailure
             if ($hasRemote.Code -ne 0) {
@@ -250,31 +358,56 @@ function Invoke-RefreshSpace {
         throw '-Space is required for refresh-space.'
     }
     $spacePath = Join-Path $Root $Space
+    $risk = Get-SpaceRiskReport -MainPath $mainPath -SpaceName $Space
+    if ($risk.unclassified_paths.Count -gt 0) {
+        throw "Workspace $Space has unclassified paths and cannot be refreshed safely.`n$($risk.unclassified_paths -join "`n")"
+    }
     $dirtyEntries = Get-DirtyEntries -Repo $spacePath
     $dirtyNonPreserved = @($dirtyEntries | Where-Object { -not (Test-PreservedPath -Path $_.Path) })
     if ($dirtyNonPreserved.Count -gt 0) {
         throw "Workspace $Space has dirty non-preserved files and cannot be refreshed safely.`n$($dirtyNonPreserved.Raw -join "`n")"
     }
 
-    $stashCreated = $false
+    $preservedBackupDir = $null
+    $preservedPaths = @()
     try {
         if ($dirtyEntries.Count -gt 0) {
-            $paths = @($dirtyEntries | Select-Object -ExpandProperty Path -Unique)
-            Invoke-Git -Repo $spacePath -GitArgs (@('stash', 'push', '-m', "hanhan-app-space-sync-$Space") + @('--') + $paths) | Out-Null
-            $stashCreated = $true
+            $preservedPaths = @($dirtyEntries | Select-Object -ExpandProperty Path -Unique)
+            $preservedBackupDir = New-TempDir
+            foreach ($path in $preservedPaths) {
+                $sourcePath = Join-Path $spacePath $path
+                if (-not (Test-Path -LiteralPath $sourcePath)) {
+                    continue
+                }
+                $backupPath = Join-Path $preservedBackupDir $path
+                $backupParent = Split-Path -Parent $backupPath
+                if ($backupParent) {
+                    New-Item -ItemType Directory -Force -Path $backupParent | Out-Null
+                }
+                Copy-Item -LiteralPath $sourcePath -Destination $backupPath -Force
+            }
+            Invoke-Git -Repo $spacePath -GitArgs (@('restore', '--source=HEAD', '--staged', '--worktree', '--') + $preservedPaths) | Out-Null
         }
         Invoke-Git -Repo $spacePath -GitArgs @('fetch', 'origin', $Branch) | Out-Null
         Invoke-Git -Repo $spacePath -GitArgs @('rebase', "origin/$Branch") | Out-Null
-        if ($stashCreated) {
-            $pop = Invoke-Git -Repo $spacePath -GitArgs @('stash', 'pop') -AllowFailure
-            if ($pop.Code -ne 0) {
-                throw "stash pop failed for $Space.`n$($pop.Output)"
+        if ($preservedPaths.Count -gt 0 -and $preservedBackupDir) {
+            foreach ($path in $preservedPaths) {
+                $backupPath = Join-Path $preservedBackupDir $path
+                if (-not (Test-Path -LiteralPath $backupPath)) {
+                    continue
+                }
+                $targetPath = Join-Path $spacePath $path
+                $targetParent = Split-Path -Parent $targetPath
+                if ($targetParent) {
+                    New-Item -ItemType Directory -Force -Path $targetParent | Out-Null
+                }
+                Copy-Item -LiteralPath $backupPath -Destination $targetPath -Force
             }
         }
         return [pscustomobject]@{
             space = $Space
             rebased_to = "origin/$Branch"
-            dirty_preserved_restored = $stashCreated
+            dirty_preserved_restored = ($preservedPaths.Count -gt 0)
         }
     }
     catch {
@@ -283,6 +416,11 @@ function Invoke-RefreshSpace {
             Invoke-Git -Repo $spacePath -GitArgs @('rebase', '--abort') -AllowFailure | Out-Null
         }
         throw
+    }
+    finally {
+        if ($preservedBackupDir -and (Test-Path $preservedBackupDir)) {
+            Remove-Item -LiteralPath $preservedBackupDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
     }
 }
 

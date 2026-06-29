@@ -15,3 +15,9 @@ Intent:
 - they should usually stay out of `hanhan/app` shared sync
 
 If a future workspace adds another local-only file, extend the preserve list in the script before bulk refresh.
+
+If `inventory` reports `unclassified_paths`, do not bulk sync yet.
+
+- If the path is space-local, add it to the preserve list first.
+- If the path is shared code, move or keep it under a shared directory so normal promotion can pick it up.
+- If the repo adds a new shared top-level directory, extend the shared-path prefixes in the script before bulk sync.
