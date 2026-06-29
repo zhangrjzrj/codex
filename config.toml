@@ -4,10 +4,7 @@
 # 可选: "codexzh" / "duckcoding"
 
 model_provider = "codexzh"
-model = "gpt-5.2"
-
-#model_provider = "duckcoding"
-#model = "gpt-5.3-codex"
+model = "gpt-5.4"
 
 model_reasoning_effort = "low"
 
@@ -66,6 +63,27 @@ trust_level = "trusted"
 [projects.'F:\hanhan']
 trust_level = "trusted"
 
+[projects.'d:\hanhan\ai_backend']
+trust_level = "trusted"
+
+[projects.'d:\hanhan\app3']
+trust_level = "trusted"
+
+[projects.'d:\hanhan\app1']
+trust_level = "trusted"
+
+[projects.'d:\hanhan\app2']
+trust_level = "trusted"
+
+[projects.'d:\hanhan\app4']
+trust_level = "trusted"
+
+[projects.'d:\hanhan\app']
+trust_level = "trusted"
+
+[projects.'d:\hanhan_public']
+trust_level = "trusted"
+
 [notice]
 hide_full_access_warning = true
 
@@ -75,3 +93,6 @@ hide_full_access_warning = true
 
 [windows]
 sandbox = "unelevated"
+
+[tui.model_availability_nux]
+"gpt-5.5" = 4

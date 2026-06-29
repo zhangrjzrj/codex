@@ -1,0 +1,4 @@
+interface:
+  display_name: "Duomilu Chat Snapshot"
+  short_description: "Read Duomilu frontend chat content from any emulator"
+  default_prompt: "Use -chat-snapshot to read the latest Duomilu chat messages and active task snapshot from any specified Android emulator/device."
