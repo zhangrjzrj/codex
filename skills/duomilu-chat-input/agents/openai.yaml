@@ -1,0 +1,4 @@
+interface:
+  display_name: "Duomilu Chat Input"
+  short_description: "Inject Chinese Duomilu chat prompts and capture UI evidence"
+  default_prompt: "Use $duomilu-chat-input to send a Chinese task prompt into the active Duomilu chat on a target emulator and capture evidence."
