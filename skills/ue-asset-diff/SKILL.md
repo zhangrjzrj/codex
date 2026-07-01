@@ -1,6 +1,6 @@
 ---
 name: "ue-asset-diff"
-description: "Export Unreal Engine World and LevelSequence assets into normalized JSON snapshots and compare baseline vs current project copies. Use when Codex needs semantic diffs for .umap or .uasset content such as actor add/remove, tag or hidden-state changes, transform drift, sequence binding changes, or MRQ/scene investigations where Git binary diffs are insufficient."
+description: "Export Unreal Engine World, LevelSequence, and MovieGraphConfig assets into normalized JSON snapshots and compare baseline vs current project copies. Use when Codex needs semantic diffs for .umap or .uasset content such as actor add/remove, tag or hidden-state changes, transform drift, sequence binding changes, MRG graph edits, or MRQ/scene investigations where Git binary diffs are insufficient."
 ---
 
 # Ue Asset Diff
@@ -31,11 +31,13 @@ Supported asset types:
 
 - `World`
 - `LevelSequence`
+- `MovieGraphConfig` / MRG
 
 Current snapshot contents:
 
 - `World`: actor label, class, path, tags, hidden flag, transform
 - `LevelSequence`: bindings, tracks, sections, master tracks, display rate, tick resolution
+- `MovieGraphConfig`: inputs, outputs, variables, branches, nodes, pins, edges, exported node properties
 
 ## Compare
 
@@ -47,6 +49,9 @@ Interpretation rules:
 - `changed_actors`: same actor label but different tags, hidden flag, or transform
 - `left_only_bindings` / `right_only_bindings`: sequence binding drift
 - `changed_bindings`: same binding name but different track structure
+- `left_only_nodes` / `right_only_nodes`: MRG node add-remove drift
+- `changed_nodes`: same MRG node name but changed class, title, properties, pins, or pin connections
+- `edges_changed`: MRG connection topology changed
 
 ## Notes
 

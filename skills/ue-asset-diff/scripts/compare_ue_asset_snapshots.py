@@ -63,6 +63,68 @@ def compare_sequence(left, right):
     return report
 
 
+def compare_lists(left, right, key):
+    left_items = index_by(left, key)
+    right_items = index_by(right, key)
+    left_keys = set(left_items)
+    right_keys = set(right_items)
+    changed = []
+
+    for item_key in sorted(left_keys & right_keys):
+        if left_items[item_key] != right_items[item_key]:
+            changed.append(
+                {
+                    key: item_key,
+                    "left": left_items[item_key],
+                    "right": right_items[item_key],
+                }
+            )
+
+    return {
+        "left_only": sorted(left_keys - right_keys),
+        "right_only": sorted(right_keys - left_keys),
+        "changed": changed,
+    }
+
+
+def compare_node_fields(left_node, right_node):
+    changed_fields = {}
+    for field in ("class", "title", "properties", "input_pins", "output_pins"):
+        if left_node.get(field) != right_node.get(field):
+            changed_fields[field] = {
+                "left": left_node.get(field),
+                "right": right_node.get(field),
+            }
+    return changed_fields
+
+
+def compare_movie_graph(left, right):
+    left_nodes = index_by(left["nodes"], "name")
+    right_nodes = index_by(right["nodes"], "name")
+    left_node_names = set(left_nodes)
+    right_node_names = set(right_nodes)
+    changed_nodes = []
+
+    for name in sorted(left_node_names & right_node_names):
+        changed_fields = compare_node_fields(left_nodes[name], right_nodes[name])
+        if changed_fields:
+            changed_nodes.append({"name": name, "fields": changed_fields})
+
+    return {
+        "inputs": compare_lists(left.get("inputs", []), right.get("inputs", []), "name"),
+        "outputs": compare_lists(left.get("outputs", []), right.get("outputs", []), "name"),
+        "variables": compare_lists(left.get("variables", []), right.get("variables", []), "name"),
+        "branches_changed": left.get("branches", []) != right.get("branches", []),
+        "branch_nodes_changed": left.get("branch_nodes", {}) != right.get("branch_nodes", {}),
+        "left_only_nodes": sorted(left_node_names - right_node_names),
+        "right_only_nodes": sorted(right_node_names - left_node_names),
+        "changed_nodes": changed_nodes,
+        "edges_changed": left.get("edges", []) != right.get("edges", []),
+        "left_edges": left.get("edges", []),
+        "right_edges": right.get("edges", []),
+    }
+
+
 def main():
     if len(sys.argv) != 4:
         raise SystemExit("Usage: compare_ue_asset_snapshots.py left.json right.json out.json")
@@ -78,6 +140,8 @@ def main():
         report = compare_world(left, right)
     elif left["asset_type"] == "LevelSequence":
         report = compare_sequence(left, right)
+    elif left["asset_type"] == "MovieGraphConfig":
+        report = compare_movie_graph(left, right)
     else:
         raise SystemExit(f"Unsupported snapshot type: {left['asset_type']}")
 
