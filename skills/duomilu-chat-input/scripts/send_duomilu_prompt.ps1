@@ -1,5 +1,6 @@
 param(
   [Parameter(Mandatory = $true)][string]$Prompt,
+  [string]$ProjectRoot = "",
   [string]$DeviceId = "",
   [string]$MemberId = "",
   [string]$SessionId = "",
@@ -15,7 +16,11 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$script:ProjectRoot = Split-Path -Parent $PSScriptRoot
+if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
+  $ProjectRoot = (Get-Location).Path
+}
+
+$script:ProjectRoot = $ProjectRoot
 $script:SpaceName = Split-Path -Leaf $script:ProjectRoot
 $script:AdbPrefix = @()
 
@@ -24,30 +29,64 @@ function Step($msg) {
   Write-Host "==> $msg" -ForegroundColor Cyan
 }
 
-function Read-LocalDebugConfig {
-  $path = Join-Path $script:ProjectRoot "config\localDebug.js"
-  if (!(Test-Path $path)) {
-    return @{
-      HttpPort = "";
-      Phone = "";
-    }
+function Read-SpaceConfig {
+  $jsonPath = Join-Path $script:ProjectRoot "config\spaceConfig.json"
+  if (Test-Path $jsonPath) {
+    return Get-Content -Raw -LiteralPath $jsonPath | ConvertFrom-Json
   }
-  $text = Get-Content -Raw -LiteralPath $path
+
+  $jsPath = Join-Path $script:ProjectRoot "config\localDebug.js"
+  if (!(Test-Path $jsPath)) {
+    return $null
+  }
+
+  $text = Get-Content -Raw -LiteralPath $jsPath
   $httpMatch = [regex]::Match($text, 'http:\s*(\d+)')
+  $wsMatch = [regex]::Match($text, 'ws:\s*(\d+)')
   $phoneMatch = [regex]::Match($text, 'phone:\s*"([^"]+)"')
+  $passwordMatch = [regex]::Match($text, 'password:\s*"([^"]+)"')
+  $trainingMatch = [regex]::Match($text, 'LOCAL_TRAINING_DEVICE_ID\s*=\s*"([^"]+)"')
+
+  return [PSCustomObject]@{
+    spaceName = $script:SpaceName
+    projectRoot = $script:ProjectRoot
+    packageName = $PackageName
+    deviceId = ""
+    backendMode = "direct"
+    directHost = "192.168.200.128"
+    forwardHost = "192.168.31.23"
+    httpPort = $(if ($httpMatch.Success) { [int]$httpMatch.Groups[1].Value } else { 0 })
+    wsPort = $(if ($wsMatch.Success) { [int]$wsMatch.Groups[1].Value } else { 0 })
+    loginPrefill = @{
+      enabled = $true
+      loginMode = "password"
+      phone = $(if ($phoneMatch.Success) { $phoneMatch.Groups[1].Value } else { "" })
+      password = $(if ($passwordMatch.Success) { $passwordMatch.Groups[1].Value } else { "" })
+      agreed = $true
+    }
+    trainingDeviceId = $(if ($trainingMatch.Success) { $trainingMatch.Groups[1].Value } else { "" })
+  }
+}
+
+$script:SpaceConfig = Read-SpaceConfig
+
+function Read-LocalDebugConfig {
   return @{
-    HttpPort = $(if ($httpMatch.Success) { $httpMatch.Groups[1].Value } else { "" })
-    Phone = $(if ($phoneMatch.Success) { $phoneMatch.Groups[1].Value } else { "" })
+    HttpPort = [string]$script:SpaceConfig.httpPort
+    Phone = [string]$script:SpaceConfig.loginPrefill.phone
   }
 }
 
 function Resolve-DefaultDeviceId {
+  if ($script:SpaceConfig -and ![string]::IsNullOrWhiteSpace([string]$script:SpaceConfig.deviceId)) {
+    return [string]$script:SpaceConfig.deviceId
+  }
   switch ($script:SpaceName) {
     "app1" { return "emulator-5554" }
     "app2" { return "emulator-5556" }
     "app3" { return "emulator-5558" }
     "app4" { return "emulator-5560" }
-    "app5" { return "emulator-5560" }
+    "app5" { return "emulator-5562" }
     default { return "emulator-5554" }
   }
 }
@@ -59,16 +98,62 @@ function Resolve-HttpBase {
   }
   $port = [string]$Config.HttpPort
   if ([string]::IsNullOrWhiteSpace($port)) {
-    switch ($script:SpaceName) {
-      "app1" { $port = "8784" }
-      "app2" { $port = "8785" }
-      "app3" { $port = "8786" }
-      "app4" { $port = "8787" }
-      "app5" { $port = "8788" }
-      default { $port = "8787" }
-    }
+    $port = [string]$script:SpaceConfig.httpPort
   }
-  return "http://192.168.200.128:$port"
+  if ([string]::IsNullOrWhiteSpace($port)) {
+    throw "http port is required"
+  }
+  $backendHost = if ([string]$script:SpaceConfig.backendMode -eq "forward") { [string]$script:SpaceConfig.forwardHost } else { [string]$script:SpaceConfig.directHost }
+  if ([string]::IsNullOrWhiteSpace($backendHost)) {
+    $backendHost = "192.168.200.128"
+  }
+  return "http://${backendHost}:$port"
+}
+
+function Resolve-RemoteInstanceId {
+  if ($script:SpaceConfig -and ![string]::IsNullOrWhiteSpace([string]$script:SpaceConfig.spaceName)) {
+    return [string]$script:SpaceConfig.spaceName
+  }
+  return $script:SpaceName
+}
+
+function Resolve-LatestFrontendChatSession {
+  $instanceId = Resolve-RemoteInstanceId
+  if ([string]::IsNullOrWhiteSpace($instanceId)) {
+    return $null
+  }
+  $sshKey = "C:\Users\zhangrjzrj\.ssh\app4_vmware_cdp_ed25519"
+  if (!(Test-Path $sshKey)) {
+    return $null
+  }
+  $remoteLog = "/home/zhangrjzrj/hanhan-runtime/ai_backend/instances/$instanceId/logs/client-av-debug-$(Get-Date -Format 'yyyy-MM-dd').log"
+  $remoteCommand = "tail -n 2000 '$remoteLog' 2>/dev/null | grep 'debug_chat_command_poll_result' | tail -n 1"
+  $line = & ssh -i $sshKey zhangrjzrj@192.168.200.128 $remoteCommand
+  if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($line)) {
+    return $null
+  }
+  try {
+    $record = $line | ConvertFrom-Json
+    $event = $record.event
+    $member = [string]$event.member_id
+    if ([string]::IsNullOrWhiteSpace($member)) {
+      $member = [string]$record.id
+    }
+    $session = [string]$event.session_id
+    if ([string]::IsNullOrWhiteSpace($session)) {
+      $session = [string]$record.session_id
+    }
+    if ([string]::IsNullOrWhiteSpace($member) -or [string]::IsNullOrWhiteSpace($session)) {
+      return $null
+    }
+    return [PSCustomObject]@{
+      MemberId = $member
+      SessionId = $session
+      Source = $remoteLog
+    }
+  } catch {
+    return $null
+  }
 }
 
 function Invoke-Adb {
@@ -196,9 +281,20 @@ function Invoke-JsonPost {
 function Invoke-FrontendDebugCommand {
   param([string]$BaseUrl, [string]$ResolvedMemberId)
   $url = "$BaseUrl/webapi/debug/chat-command"
+  $commandMemberId = $ResolvedMemberId
+  $commandSessionId = $SessionId
+  $resolvedSession = $null
+  if ([string]::IsNullOrWhiteSpace($commandSessionId) -and $commandMemberId -eq [string]$config.Phone) {
+    $resolvedSession = Resolve-LatestFrontendChatSession
+    if ($null -eq $resolvedSession) {
+      throw "cannot resolve active frontend chat session; pass -MemberId and -SessionId to avoid broadcasting a default debug command"
+    }
+    $commandMemberId = $resolvedSession.MemberId
+    $commandSessionId = $resolvedSession.SessionId
+  }
   $body = @{
-    member_id = $ResolvedMemberId
-    session_id = $SessionId
+    member_id = $commandMemberId
+    session_id = $commandSessionId
     type = "send_text"
     text = $Prompt
   }
@@ -213,14 +309,16 @@ function Invoke-FrontendDebugCommand {
     Start-Sleep -Milliseconds 800
     try {
       $poll = Invoke-RestMethod -Uri "$url?command_id=$commandId" -TimeoutSec 5
-      $reported = $poll.result.result
-      if ($reported) {
+      if ($poll -and $poll.result -and $poll.result.PSObject.Properties.Name -contains "result" -and $null -ne $poll.result.result) {
+        $reported = $poll.result.result
         break
       }
     } catch {}
   }
   return [PSCustomObject]@{
     command_id = $commandId
+    target_member_id = $commandMemberId
+    target_session_id = $commandSessionId
     reported = $reported
   }
 }
@@ -229,8 +327,21 @@ function Invoke-AdbFallbackSend {
   $beforePath = Dump-Ui -Name ("duomilu-before-" + (Get-Date -Format "yyyyMMdd-HHmmss"))
   [xml]$beforeXml = Get-Content -Raw -LiteralPath $beforePath -Encoding UTF8
   $promptNode = Get-PromptNode -Xml $beforeXml
-  if ($null -eq $promptNode) { throw "prompt input not found in UI dump: $beforePath" }
-  $promptCenter = Get-BoundsCenter -Node $promptNode
+  if ($null -eq $promptNode) {
+    # WORKAROUND: Some WebView dumps omit the bottom EditText node even when the
+    # real chat composer is visible. Fall back to the verified app1 chat input
+    # area so the global send skill stays usable until a more stable selector is
+    # available across spaces.
+    $promptCenter = [PSCustomObject]@{
+      X = 620
+      Y = 1755
+      Bounds = "[222,1725][1011,1788]"
+      Width = 789
+      Height = 63
+    }
+  } else {
+    $promptCenter = Get-BoundsCenter -Node $promptNode
+  }
   Invoke-Adb shell input tap $promptCenter.X $promptCenter.Y
   if ($LASTEXITCODE -ne 0) { throw "tap prompt failed" }
   Start-Sleep -Milliseconds 400
@@ -243,8 +354,20 @@ function Invoke-AdbFallbackSend {
     $midPath = Dump-Ui -Name ("duomilu-before-send-" + (Get-Date -Format "yyyyMMdd-HHmmss"))
     [xml]$midXml = Get-Content -Raw -LiteralPath $midPath -Encoding UTF8
     $sendNode = Get-SendNode -Xml $midXml
-    if ($null -eq $sendNode) { throw "send button not found in UI dump: $midPath" }
-    $sendCenter = Get-BoundsCenter -Node $sendNode
+    if ($null -eq $sendNode) {
+      # WORKAROUND: Current chat-page dumps may hide the send button subtree after
+      # text paste. Use the verified right-edge send region until the frontend
+      # exposes a stable node for automation.
+      $sendCenter = [PSCustomObject]@{
+        X = 1000
+        Y = 1755
+        Bounds = "[948,1725][1050,1788]"
+        Width = 102
+        Height = 63
+      }
+    } else {
+      $sendCenter = Get-BoundsCenter -Node $sendNode
+    }
     Invoke-Adb shell input tap $sendCenter.X $sendCenter.Y
     if ($LASTEXITCODE -ne 0) { throw "tap send failed" }
   }
@@ -301,12 +424,15 @@ $afterPath = Dump-Ui -Name ("duomilu-after-" + (Get-Date -Format "yyyyMMdd-HHmms
 
 [PSCustomObject]@{
   status = "sent"
+  project_root = $script:ProjectRoot
   space = $script:SpaceName
   device_id = $DeviceId
   package_name = $PackageName
   http_base = $resolvedHttpBase
   member_id = $MemberId
   session_id = $SessionId
+  target_member_id = $(if ($commandResult) { $commandResult.target_member_id } else { "" })
+  target_session_id = $(if ($commandResult) { $commandResult.target_session_id } else { "" })
   submit_mode = $submitMode
   command_id = $(if ($commandResult) { $commandResult.command_id } else { "" })
   command_report = $(if ($commandResult) { $commandResult.reported } else { $null })

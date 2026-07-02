@@ -11,25 +11,26 @@ Prefer this skill over ad hoc `adb shell input text` when the prompt contains Ch
 
 ## Workflow
 
-1. Resolve the current app space from the working directory: `D:\hanhan\app`, `app1`, `app2`, `app3`, `app4`, or `app5`.
-2. Prefer the script in the current space: `<space>\scripts\send_duomilu_prompt.ps1`.
-3. Run `scripts/send_duomilu_prompt.ps1 -Prompt "<text>"`; pass `-DeviceId`, `-MemberId`, or `-HttpBase` only when the defaults are wrong.
-4. Read the returned JSON for `space`, `device_id`, `http_base`, `member_id`, `submit_mode`, `command_report`, `before_dump`, and `after_dump`.
-5. Inspect the emitted UI dumps and optional screenshots under the evidence directory.
-6. Continue the closed loop only after the send path is proven.
+1. Resolve the target app space from the working directory or pass it explicitly with `-ProjectRoot`, for example `D:\hanhan\app1`.
+2. Run the global script: `C:\Users\zhangrjzrj\.codex\skills\duomilu-chat-input\scripts\send_duomilu_prompt.ps1 -Prompt "<text>" -ProjectRoot <space-root>`.
+3. Let the script read `<space-root>\config\spaceConfig.json` first; it falls back to `config\localDebug.js` only for older spaces.
+4. Pass `-DeviceId`, `-MemberId`, `-SessionId`, or `-HttpBase` only when the inferred defaults are intentionally wrong.
+5. Read the returned JSON for `project_root`, `space`, `device_id`, `http_base`, `member_id`, `target_member_id`, `target_session_id`, `submit_mode`, `command_report`, `before_dump`, and `after_dump`.
+6. Inspect the emitted UI dumps and optional screenshots under the evidence directory.
+7. Continue the closed loop only after the send path is proven.
 
 ## Space Defaults
 
-The script should infer defaults from the current working directory and `config/localDebug.js`.
+The script should infer defaults from `<space-root>\config\spaceConfig.json` and only fall back to `config/localDebug.js` when the JSON config is absent.
 
 | Space | Default device | Default backend |
 | --- | --- | --- |
-| `D:\hanhan\app1` | `emulator-5554` | `config/localDebug.js` or `http://192.168.200.128:8784` |
-| `D:\hanhan\app2` | `emulator-5556` | `config/localDebug.js` or `http://192.168.200.128:8785` |
-| `D:\hanhan\app3` | `emulator-5558` | `config/localDebug.js` or `http://192.168.200.128:8786` |
-| `D:\hanhan\app4` | `emulator-5560` | `config/localDebug.js` or `http://192.168.200.128:8787` |
-| `D:\hanhan\app5` | `emulator-5560` | `config/localDebug.js` or `http://192.168.200.128:8788` |
-| `D:\hanhan\app` | no hard assumption | read `config/localDebug.js`; pass `-DeviceId` if ambiguous |
+| `D:\hanhan\app1` | `emulator-5554` | `spaceConfig.json` or `http://192.168.200.128:8784` |
+| `D:\hanhan\app2` | `emulator-5556` | `spaceConfig.json` or workspace fallback |
+| `D:\hanhan\app3` | `emulator-5558` | `spaceConfig.json` or workspace fallback |
+| `D:\hanhan\app4` | `emulator-5560` | `spaceConfig.json` or workspace fallback |
+| `D:\hanhan\app5` | `emulator-5562` | `spaceConfig.json` or workspace fallback |
+| `D:\hanhan\app` | no hard assumption | read `spaceConfig.json` or fallback config; pass `-DeviceId` if ambiguous |
 
 Do not assume app4. If the current task says app1, use app1's workspace, backend, account, and emulator.
 
@@ -37,6 +38,7 @@ Do not assume app4. If the current task says app1, use app1's workspace, backend
 
 - Verifies ADB availability and that the Duomilu app is foreground.
 - Dumps the current UI tree before send.
+- Resolves the correct member/session pair for the active frontend chat when possible, so debug commands target the real session instead of a stale default.
 - Posts a debug `send_text` command to `/webapi/debug/chat-command`, so the frontend chat page itself calls its real `send(text)` logic.
 - Waits for the frontend debug bridge to report command consumption.
 - Uses ADB text injection only when the explicit `-AllowAdbFallback` switch is passed and the debug command path fails.
@@ -61,9 +63,10 @@ Do not assume app4. If the current task says app1, use app1's workspace, backend
 - Pass `-DeviceId` explicitly when multiple emulators are online and the inferred device is not the target.
 - Pass `-HttpBase` explicitly only when the current workspace is intentionally talking to a nonstandard backend instance.
 - The default evidence directory is relative to the current workspace: `.local-artifacts/runtime-evidence/duomilu-send-prompt/`.
+- Current ADB fallback still contains a documented `WORKAROUND` that uses verified chat-page coordinates when the WebView dump omits the composer or send button nodes.
 - This skill solves prompt injection reliability. It does not by itself prove that the downstream external task flow succeeded.
 
 ## Scripts
 
 - `scripts/send_duomilu_prompt.ps1`
-  Send a prompt into the active Duomilu chat using paste-first input and write before/after UI evidence.
+  Send a prompt into the active Duomilu chat using the frontend debug command path first, then documented ADB fallback if needed, and write before/after UI evidence.
