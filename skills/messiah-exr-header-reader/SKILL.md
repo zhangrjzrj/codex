@@ -1,6 +1,6 @@
 ---
-name: messiah-exr-header-reader
-description: Read key OpenEXR header attributes in the Messiah workflow, especially `depth_flag`, `MinDepth`, `MaxDepth`, `z_near`, and `z_far`, by compiling and running a tiny local OpenEXR probe against Messiah's bundled OpenEXR libraries. Use when a user wants to verify whether a recorded EXR frame was tagged correctly, inspect depth metadata for AOV/NBS debugging, or quickly check header values from files like `CharacterBoundDepth.exr`.
+name: "messiah-exr-header-reader"
+description: "Read key OpenEXR header attributes in the Messiah workflow, especially `depth_flag`, `MinDepth`, `MaxDepth`, `z_near`, and `z_far`, by compiling and running a tiny local OpenEXR probe against Messiah's bundled OpenEXR libraries. Use when a user wants to verify whether a recorded EXR frame was tagged correctly, inspect depth metadata for AOV/NBS debugging, or quickly check header values from files like `CharacterBoundDepth.exr`."
 ---
 
 # Messiah EXR Header Reader
@@ -43,4 +43,6 @@ python C:\Users\zhangruojun\.codex\skills\messiah-exr-header-reader\scripts\read
 
 - The script uses Messiah's bundled OpenEXR headers and libs.
 - It compiles a tiny helper once and reuses it on later runs.
+- It builds inside the skill `.cache` directory and uses a lock file so parallel calls do not race on `probe.obj`.
+- It decodes compiler output with UTF-8 and replacement fallback to avoid Windows codepage failures.
 - If OpenEXR is not found in the default Messiah locations, pass `--openexr-root`.

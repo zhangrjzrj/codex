@@ -7,6 +7,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 
@@ -88,33 +89,71 @@ def build_probe(script_dir: Path, openexr_root: Path) -> Path:
     cpp_path = cache_dir / "probe.cpp"
     exe_path = cache_dir / "probe.exe"
     bat_path = cache_dir / "build_probe.bat"
-    cpp_path.write_text(CPP_SOURCE, encoding="ascii")
+    lock_path = cache_dir / "build_probe.lock"
 
-    include_dir = openexr_root / "include"
-    lib_dir = openexr_root / "lib" / "release"
-    vsdevcmd = detect_vsdevcmd()
+    if exe_path.exists():
+        return exe_path
 
-    command = (
-        "@echo off\n"
-        f'call "{vsdevcmd}" -arch=x64 -host_arch=x64 >nul\n'
-        f'cl /nologo /MD /EHsc /std:c++17 /I "{include_dir}" "{cpp_path}" '
-        f'/link /LIBPATH:"{lib_dir}" /DEFAULTLIB:legacy_stdio_definitions.lib '
-        'IlmImf-2_4.lib Iex-2_4.lib IlmThread-2_4.lib Imath-2_4.lib Half-2_4.lib zlibstatic.lib '
-        f'/OUT:"{exe_path}"\n'
-    )
-    bat_path.write_text(command, encoding="ascii")
+    lock_handle = acquire_lock(lock_path)
+    try:
+        if exe_path.exists():
+            return exe_path
 
-    proc = subprocess.run(
-        ["cmd.exe", "/c", str(bat_path)],
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
-    if proc.returncode != 0 or not exe_path.exists():
-        sys.stderr.write(proc.stdout)
-        sys.stderr.write(proc.stderr)
-        raise RuntimeError("failed to build EXR probe")
-    return exe_path
+        cpp_path.write_text(CPP_SOURCE, encoding="ascii")
+
+        include_dir = openexr_root / "include"
+        lib_dir = openexr_root / "lib" / "release"
+        vsdevcmd = detect_vsdevcmd()
+
+        command = (
+            "@echo off\n"
+            f'call "{vsdevcmd}" -arch=x64 -host_arch=x64 >nul\n'
+            f'pushd "{cache_dir}"\n'
+            f'cl /nologo /MD /EHsc /std:c++17 /I "{include_dir}" "{cpp_path}" '
+            f'/link /LIBPATH:"{lib_dir}" /DEFAULTLIB:legacy_stdio_definitions.lib '
+            'IlmImf-2_4.lib Iex-2_4.lib IlmThread-2_4.lib Imath-2_4.lib Half-2_4.lib zlibstatic.lib '
+            f'/OUT:"{exe_path}"\n'
+            "set EXIT_CODE=%ERRORLEVEL%\n"
+            "popd\n"
+            "exit /b %EXIT_CODE%\n"
+        )
+        bat_path.write_text(command, encoding="ascii")
+
+        proc = subprocess.run(
+            ["cmd.exe", "/c", str(bat_path)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=120,
+            cwd=str(cache_dir),
+        )
+        if proc.returncode != 0 or not exe_path.exists():
+            sys.stderr.write(proc.stdout or "")
+            sys.stderr.write(proc.stderr or "")
+            raise RuntimeError("failed to build EXR probe")
+        return exe_path
+    finally:
+        release_lock(lock_handle, lock_path)
+
+
+def acquire_lock(lock_path: Path, timeout_seconds: float = 120.0):
+    deadline = time.time() + timeout_seconds
+    while True:
+        try:
+            return os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_RDWR)
+        except FileExistsError:
+            if time.time() >= deadline:
+                raise TimeoutError(f"timed out waiting for lock: {lock_path}")
+            time.sleep(0.2)
+
+
+def release_lock(lock_handle, lock_path: Path) -> None:
+    os.close(lock_handle)
+    try:
+        lock_path.unlink()
+    except FileNotFoundError:
+        pass
 
 
 def parse_probe_output(text: str) -> dict[str, float | None]:
@@ -151,6 +190,8 @@ def main() -> int:
         [str(exe_path), str(exr_path)],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
     )
     if proc.returncode != 0:
