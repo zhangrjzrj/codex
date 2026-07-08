@@ -1,0 +1,4 @@
+interface:
+  display_name: "UE RenderDoc Capture"
+  short_description: "Capture UE PIE frames as RenderDoc .rdc files"
+  default_prompt: "Use $ue-renderdoc-capture to capture the current Unreal Editor PIE frame with RenderDoc and return the .rdc path."

@@ -1,12 +1,4 @@
-# =========================
-# Active Profile（只改这里）
-# =========================
-# 可选: "codexzh" / "duckcoding"
-
 model_provider = "codexzh"
-model = "gpt-5.5"
-
-model_reasoning_effort = "low"
 
 # 下面两项是否生效取决于客户端版本；默认注释避免兼容性问题
 # network_access = "enabled"
@@ -22,6 +14,9 @@ cache_compression = true
 notify = ["python", "C:\\Users\\zhangruojun\\.codex\\codex-notify.py"]
 approvals_reviewer = "user"
 personality = "pragmatic"
+plan_mode_reasoning_effort = "low"
+model = "gpt-5.5"
+model_reasoning_effort = "low"
 
 # =========================
 # Providers（并存）
@@ -33,11 +28,26 @@ wire_api = "responses"
 requires_openai_auth = true
 web_search = "live"
 
+[model_providers.newapi]
+name = "CodeMaker"
+base_url = "http://127.0.0.1:15721/v1"
+wire_api = "responses"
+requires_openai_auth = true
+supports_websockets = false
+model_context_window = 1000000
+model_auto_compact_token_limit = 900000
+
 [model_providers.duckcoding]
 name = "OpenAI"
 base_url = "https://api.duckcoding.ai/v1"
 wire_api = "responses"
 requires_openai_auth = true
+
+[model_providers.teamorouter]
+name = "teamorouter"
+base_url = "https://api.teamorouter.com/v1"
+requires_openai_auth = true
+wire_api = "responses"
 
 # =========================
 # Project Trust（按你现有保留）
@@ -84,6 +94,33 @@ trust_level = "trusted"
 [projects.'d:\hanhan_public']
 trust_level = "trusted"
 
+[projects.'c:\users\zhangruojun']
+trust_level = "trusted"
+
+[projects.'f:\messiah_official']
+trust_level = "trusted"
+
+[projects.'f:\messiah_g_99']
+trust_level = "trusted"
+
+[projects.'c:\users\zhangruojun\videos\captures']
+trust_level = "trusted"
+
+[projects.'f:\ue']
+trust_level = "trusted"
+
+[projects.'f:\messiah_official\messiah']
+trust_level = "trusted"
+
+[projects.'f:\messiah_g83']
+trust_level = "trusted"
+
+[projects.'f:\nbsencodergui']
+trust_level = "trusted"
+
+[projects.'e:\messiah_h74\newbasis']
+trust_level = "trusted"
+
 [notice]
 hide_full_access_warning = true
 
@@ -96,3 +133,8 @@ sandbox = "unelevated"
 
 [tui.model_availability_nux]
 "gpt-5.5" = 4
+
+[features]
+#codex_hooks = true
+#codex_hooks = true
+#hooks = true
