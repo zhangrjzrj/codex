@@ -1,0 +1,4 @@
+interface:
+  display_name: "Image Payload Optimizer"
+  short_description: "Shrink screenshots before visual review"
+  default_prompt: "Use $image-payload-optimizer to create a low-payload preview of this screenshot while preserving the original evidence file."
