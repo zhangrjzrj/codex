@@ -222,6 +222,36 @@ function Get-BoundsCenter {
   }
 }
 
+function Get-AdbScreenSize {
+  $raw = (& adb @script:AdbPrefix shell wm size) -join "`n"
+  $match = [regex]::Match($raw, 'Physical size:\s*(\d+)x(\d+)')
+  if (-not $match.Success) {
+    throw "failed to read adb screen size: $raw"
+  }
+  return [PSCustomObject]@{
+    Width = [int]$match.Groups[1].Value
+    Height = [int]$match.Groups[2].Value
+  }
+}
+
+function Convert-ReferencePointToScreen {
+  param(
+    [Parameter(Mandatory = $true)][int]$X,
+    [Parameter(Mandatory = $true)][int]$Y,
+    [int]$ReferenceWidth = 1080,
+    [int]$ReferenceHeight = 1920
+  )
+  $size = Get-AdbScreenSize
+  $scaledX = [Math]::Round($X * $size.Width / $ReferenceWidth)
+  $scaledY = [Math]::Round($Y * $size.Height / $ReferenceHeight)
+  return [PSCustomObject]@{
+    X = [int][Math]::Max(0, [Math]::Min($size.Width - 1, $scaledX))
+    Y = [int][Math]::Max(0, [Math]::Min($size.Height - 1, $scaledY))
+    Reference = "${ReferenceWidth}x${ReferenceHeight}"
+    Screen = "$($size.Width)x$($size.Height)"
+  }
+}
+
 function Get-PromptNode {
   param([xml]$Xml)
   $node = Get-NodeByResourceId -Xml $Xml -ResourceId "prompt"
@@ -329,16 +359,9 @@ function Invoke-AdbFallbackSend {
   $promptNode = Get-PromptNode -Xml $beforeXml
   if ($null -eq $promptNode) {
     # WORKAROUND: Some WebView dumps omit the bottom EditText node even when the
-    # real chat composer is visible. Fall back to the verified app1 chat input
-    # area so the global send skill stays usable until a more stable selector is
-    # available across spaces.
-    $promptCenter = [PSCustomObject]@{
-      X = 620
-      Y = 1755
-      Bounds = "[222,1725][1011,1788]"
-      Width = 789
-      Height = 63
-    }
+    # real chat composer is visible. Fall back to a scaled reference point in
+    # the bottom composer area until the frontend exposes a stable node.
+    $promptCenter = Convert-ReferencePointToScreen -X 620 -Y 1755
   } else {
     $promptCenter = Get-BoundsCenter -Node $promptNode
   }
@@ -356,15 +379,9 @@ function Invoke-AdbFallbackSend {
     $sendNode = Get-SendNode -Xml $midXml
     if ($null -eq $sendNode) {
       # WORKAROUND: Current chat-page dumps may hide the send button subtree after
-      # text paste. Use the verified right-edge send region until the frontend
-      # exposes a stable node for automation.
-      $sendCenter = [PSCustomObject]@{
-        X = 1000
-        Y = 1755
-        Bounds = "[948,1725][1050,1788]"
-        Width = 102
-        Height = 63
-      }
+      # text paste. Use a scaled right-edge send-region reference until the
+      # frontend exposes a stable node for automation.
+      $sendCenter = Convert-ReferencePointToScreen -X 1000 -Y 1755
     } else {
       $sendCenter = Get-BoundsCenter -Node $sendNode
     }
