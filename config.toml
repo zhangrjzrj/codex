@@ -52,73 +52,73 @@ wire_api = "responses"
 # =========================
 # Project Trust（按你现有保留）
 # =========================
-[projects.'F:\messiah_h74_new_branch']
+[projects."F:\\messiah_h74_new_branch"]
 trust_level = "trusted"
 
-[projects.'F:\messiah_h74_latest_mobile']
+[projects."F:\\messiah_h74_latest_mobile"]
 trust_level = "trusted"
 
-[projects.'C:\Windows\System32']
+[projects."C:\\Windows\\System32"]
 trust_level = "trusted"
 
-[projects.'F:\messiah_h74_new_branch\Messiah']
+[projects."F:\\messiah_h74_new_branch\\Messiah"]
 trust_level = "trusted"
 
-[projects.'F:\messiah_h74_latest']
+[projects."F:\\messiah_h74_latest"]
 trust_level = "trusted"
 
-[projects.'F:\messiah_h74_B']
+[projects."F:\\messiah_h74_B"]
 trust_level = "trusted"
 
-[projects.'F:\hanhan']
+[projects."F:\\hanhan"]
 trust_level = "trusted"
 
-[projects.'d:\hanhan\ai_backend']
+[projects."d:\\hanhan\\ai_backend"]
 trust_level = "trusted"
 
-[projects.'d:\hanhan\app3']
+[projects."d:\\hanhan\\app3"]
 trust_level = "trusted"
 
-[projects.'d:\hanhan\app1']
+[projects."d:\\hanhan\\app1"]
 trust_level = "trusted"
 
-[projects.'d:\hanhan\app2']
+[projects."d:\\hanhan\\app2"]
 trust_level = "trusted"
 
-[projects.'d:\hanhan\app4']
+[projects."d:\\hanhan\\app4"]
 trust_level = "trusted"
 
-[projects.'d:\hanhan\app']
+[projects."d:\\hanhan\\app"]
 trust_level = "trusted"
 
-[projects.'d:\hanhan_public']
+[projects."d:\\hanhan_public"]
 trust_level = "trusted"
 
-[projects.'c:\users\zhangruojun']
+[projects."c:\\users\\zhangruojun"]
 trust_level = "trusted"
 
-[projects.'f:\messiah_official']
+[projects."f:\\messiah_official"]
 trust_level = "trusted"
 
-[projects.'f:\messiah_g_99']
+[projects."f:\\messiah_g_99"]
 trust_level = "trusted"
 
-[projects.'c:\users\zhangruojun\videos\captures']
+[projects."c:\\users\\zhangruojun\\videos\\captures"]
 trust_level = "trusted"
 
-[projects.'f:\ue']
+[projects."f:\\ue"]
 trust_level = "trusted"
 
-[projects.'f:\messiah_official\messiah']
+[projects."f:\\messiah_official\\messiah"]
 trust_level = "trusted"
 
-[projects.'f:\messiah_g83']
+[projects."f:\\messiah_g83"]
 trust_level = "trusted"
 
-[projects.'f:\nbsencodergui']
+[projects."f:\\nbsencodergui"]
 trust_level = "trusted"
 
-[projects.'e:\messiah_h74\newbasis']
+[projects."e:\\messiah_h74\\newbasis"]
 trust_level = "trusted"
 
 [notice]
