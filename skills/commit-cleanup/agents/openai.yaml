@@ -1,0 +1,4 @@
+interface:
+  display_name: "Commit Cleanup"
+  short_description: "Audit, group, commit, and verify clean workspaces"
+  default_prompt: "Use $commit-cleanup to audit changes, commit the safe set, and report whether the workspace is clean."
