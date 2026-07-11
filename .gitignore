@@ -40,6 +40,8 @@ skills/web-playwright-operator/tmp-*.json
 skills/web-playwright-operator/user-data/
 
 # Local state cache
+.codex-global-state.json
+.codex-global-state.json.bak
 cap_sid
 installation_id
 version.json
@@ -47,6 +49,11 @@ state_*.sqlite*
 logs_*.sqlite*
 hooks.json
 reboot-restore/
+sqlite/
+vendor_imports/
+
+# Local model/provider configs
+fable5-*.config.toml
 
 # OS
 .DS_Store
