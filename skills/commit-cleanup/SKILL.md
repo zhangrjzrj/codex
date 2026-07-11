@@ -23,6 +23,8 @@ Uncertain ownership or risk -> do not commit; report exactly why.
 
 Never use `git add .`, `git commit -a`, broad `git reset`, or destructive cleanup. Preserve unrelated user changes.
 
+Commit cleanup is a conservative local archival workflow. Do not push, fetch/rebase, stash, reset, restore, delete files, drop stashes, clean untracked files, or rewrite history unless the user explicitly requests that exact operation in the current turn.
+
 ## Workflow
 
 1. Inspect repository state.
@@ -155,6 +157,8 @@ the user explicitly asked not to commit
 ```
 
 If the user has explicitly asked "提交应该提交的部分", commit the clear commit candidates and leave uncertain items uncommitted with a short explanation.
+
+If the user asks for remote synchronization, treat that as separate from ordinary commit cleanup. Only run `git fetch`, `git rebase`, or `git push` when the user explicitly says to do so.
 
 ## Quality Bar
 
