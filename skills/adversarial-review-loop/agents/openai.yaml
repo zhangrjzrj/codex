@@ -1,0 +1,4 @@
+﻿interface:
+  display_name: "Adversarial Review Loop"
+  short_description: "Run bounded multi-agent review with P0-P3 triage and a stop rule."
+  default_prompt: "Use adversarial-review-loop to review the current changes, classify findings as P0-P3, and decide whether the large review loop should stop."

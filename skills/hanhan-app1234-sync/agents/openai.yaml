@@ -1,0 +1,4 @@
+interface:
+  display_name: "韩寒 App1234 同步"
+  short_description: "提交、rebase、推送并刷新 app1-4 前端空间。"
+  default_prompt: "先提交 app1234 前端代码，然后 fetch 远端最新，rebase，推送，然后再更新 app1234 到最新。"
