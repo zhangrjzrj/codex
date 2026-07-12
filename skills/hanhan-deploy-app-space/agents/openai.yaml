@@ -1,0 +1,4 @@
+﻿interface:
+  display_name: "韩寒 App 空间部署"
+  short_description: "按 app1-4 空间配置部署前端到模拟器和 Linux 后端。"
+  default_prompt: "部署 app2"
