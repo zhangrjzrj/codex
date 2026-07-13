@@ -121,6 +121,9 @@ trust_level = "trusted"
 [projects."e:\\messiah_h74\\newbasis"]
 trust_level = "trusted"
 
+[projects.'c:\users\zhangrjzrj']
+trust_level = "trusted"
+
 [notice]
 hide_full_access_warning = true
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Bug Test Distiller"
+  short_description: "Turn fixed bugs into reusable regression tests and gates."
+  default_prompt: "After fixing a bug, extract the invariant, forbidden sequence, regression tests, source guards, and product E2E gates so the same class of issue fails automatically next time."

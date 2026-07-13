@@ -23,17 +23,26 @@ If a required config is missing or mismatched, stop and report the exact mismatc
    ```powershell
    powershell -ExecutionPolicy Bypass -File D:\hanhan\<current-or-any-app-space>\scripts\deploy_app_space.ps1 -Space <space>
    ```
-3. Use debug/visible mode only when requested:
+3. Use visible mode only when requested:
    ```powershell
-   powershell -ExecutionPolicy Bypass -File D:\hanhan\<current-or-any-app-space>\scripts\deploy_app_space.ps1 -Space <space> -Mode debug
+   powershell -ExecutionPolicy Bypass -File D:\hanhan\<current-or-any-app-space>\scripts\deploy_app_space.ps1 -Space <space> -Visible
    ```
-4. To deploy multiple spaces, run the same script once per space. Prefer serial APK builds:
+4. Use frontend debug mode only when requested:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File D:\hanhan\<current-or-any-app-space>\scripts\deploy_app_space.ps1 -Space <space> -FrontendDebug
+   ```
+5. Use both when the user asks for debug + visible deployment:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File D:\hanhan\<current-or-any-app-space>\scripts\deploy_app_space.ps1 -Space <space> -Visible -FrontendDebug
+   ```
+6. `-Mode debug` is kept as a compatibility alias for `-Visible -FrontendDebug`; prefer explicit flags in new work.
+7. To deploy multiple spaces, run the same script once per space. Prefer serial APK builds:
    ```powershell
    foreach($s in 'app1','app2','app3','app4'){
      powershell -ExecutionPolicy Bypass -File D:\hanhan\app2\scripts\deploy_app_space.ps1 -Space $s
    }
    ```
-5. Open the APK output directory if the user is installing on a real device.
+8. Open the APK output directory if the user is installing on a real device.
 
 The script performs the gates, Linux backend restart, Windows forwarding, APK build/install/launch, generated-space verification, and login verification.
 
