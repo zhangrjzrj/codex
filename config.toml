@@ -15,7 +15,7 @@ notify = ["python", "C:\\Users\\zhangruojun\\.codex\\codex-notify.py"]
 approvals_reviewer = "user"
 personality = "pragmatic"
 plan_mode_reasoning_effort = "low"
-model = "gpt-5.5"
+model = "gpt-5.4"
 model_reasoning_effort = "low"
 
 # =========================
@@ -136,6 +136,7 @@ sandbox = "unelevated"
 
 [tui.model_availability_nux]
 "gpt-5.5" = 4
+"gpt-5.6-sol" = 4
 
 [features]
 #codex_hooks = true

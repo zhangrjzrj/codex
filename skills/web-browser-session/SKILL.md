@@ -16,7 +16,7 @@ Use one-shot Playwright batch automation only when the full flow is fixed, repea
 ## Core Workflow
 
 1. Open or attach to a session.
-   - Start with `scripts/open_session.py` unless a compatible CDP browser is already running.
+   - Start with `scripts/open_session.py`; if a compatible CDP browser is already running on the target port, it will attach instead of launching a duplicate instance.
    - Use a persistent profile for login-heavy sites.
 2. Inspect the page.
    - Use `scripts/list_tabs.py` to see open tabs.
