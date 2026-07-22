@@ -1,132 +1,53 @@
 ---
 name: "ue-window-capture"
-description: "Capture Unreal Editor evidence screenshots for UE visual feedback loops. Use when Codex needs either full IDE/window screenshots of Unreal Editor, or occlusion-safe lightweight viewport/PIE screenshots through ArtClaw MCP and UE internal screenshot APIs, with JSON metadata for MRG/NBS/render validation."
+description: "Capture occlusion-safe Unreal Editor viewport or PIE render evidence through ArtClaw MCP and UE internal screenshot APIs, with JSON metadata for MRG, NBS, composition, and render validation. Use for scene/viewport pixels, not complete editor UI."
 ---
 
-# UE Window Capture
+# UE Viewport Capture
 
-Use this skill to capture Unreal Editor evidence during UE debugging, PIE playback checks, MRG/NBS visual validation, or other UE feedback loops.
+Use this skill for UE viewport or PIE render evidence. It captures pixels inside the editor process, does not click the UE window, and does not require the editor to be foreground or unoccluded.
 
-## Capture Modes
+For complete Unreal Editor UI such as menus, MRG graph layout, Details, Outliner, Content Browser, or dialogs, use `windows-graphics-capture` instead.
 
-### IDE Window
+## Capture
 
-Use `scripts/capture_ue_window.ps1` when Codex must see the whole Unreal Editor IDE:
-
-- MRG graph layout
-- Details panel
-- Outliner
-- Content Browser
-- modal dialogs or editor chrome
-
-- Captures a running `UnrealEditor.exe` window by PID, title regex, or first matching process.
-- Does not require Unreal Editor to be the active foreground window.
-- Writes a PNG and a JSON metadata file.
-
-Limits:
-
-- The target window must be visible and not minimized.
-- Pixels come from the desktop compositor via screen copy; if another window covers UE, the capture can include the covering window.
-- This is not a GPU backbuffer readback and not a RenderDoc capture.
-
-### Viewport Internal
-
-Use `scripts/capture_ue_viewport.ps1` when Codex needs occlusion-safe render evidence:
-
-- PIE or editor viewport result
-- NBS playback visual checks
-- rain/character/depth composition checks
-- color/scale/camera validation
-
-This mode calls ArtClaw MCP, which executes UE Python inside the editor process and uses `unreal.AutomationLibrary.take_high_res_screenshot`. It does not use RenderDoc, does not click the UE window, and does not require the editor window to be foreground or unoccluded.
-
-Limits:
-
-- Captures the active UE viewport, not the full IDE.
-- The PNG alone does not prove whether the source was PIE or editor scene view; always inspect the JSON metadata and ArtClaw report.
-- Requires ArtClaw MCP at `http://127.0.0.1:17881/mcp` and a running `UnrealEditor.exe`.
-
-## Quick Start: IDE Window
-
-Run the bundled script:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File "$env:CODEX_HOME\skills\ue-window-capture\scripts\capture_ue_window.ps1" -OutputPath "F:\path\shot.png"
-```
-
-If `CODEX_HOME` is unset, use:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File "$HOME\.codex\skills\ue-window-capture\scripts\capture_ue_window.ps1" -OutputPath "F:\path\shot.png"
-```
-
-Useful options:
-
-```powershell
-# Exact UE process id.
--ProcessId 38400
-
-# Window title regex.
--TitleRegex "ue_test_demo|LVL_H74"
-
-# Also print JSON metadata to stdout.
--Json
-```
-
-## Quick Start: Viewport Internal
+1. Confirm `UnrealEditor.exe` is running and responsive.
+2. Put output in the project's ignored evidence directory.
+3. Run the bundled script.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File "$HOME\.codex\skills\ue-window-capture\scripts\capture_ue_viewport.ps1" `
   -ProjectRoot "F:\ue\ue-test-demo_new_mrg" `
-  -OutputPath "F:\ue\ue-test-demo_new_mrg\Saved\CodexEvidence\shot.png" `
+  -OutputPath "F:\ue\ue-test-demo_new_mrg\Saved\CodexEvidence\viewport.png" `
   -Width 1280 -Height 720 -Json
 ```
 
 Useful options:
 
 ```powershell
-# Exact UE process id used for metadata and project inference.
+# Bind metadata to a specific UE process.
 -ProcessId 31372
 
-# Capture at a custom size.
--Width 1920 -Height 1080
-
-# Ask UE to use game view where supported.
+# Use game view where supported.
 -ForceGameView
 
-# ArtClaw endpoint override.
+# Override the ArtClaw endpoint.
 -McpUrl "http://127.0.0.1:17881/mcp"
 ```
 
-## Feedback Loop Pattern
+## Validate
 
-1. Confirm `UnrealEditor` is running and responsive.
-2. Choose capture mode:
-   - IDE state or editor UI: use `capture_ue_window.ps1`.
-   - render/playback result: use `capture_ue_viewport.ps1`.
-3. Wait for rendering/playback to settle.
-4. Run the selected capture script.
-5. Inspect the PNG and metadata before deciding pass/fail.
+Inspect both the PNG and JSON metadata:
 
-IDE metadata fields to check:
+- `success` is true.
+- `captureMode` is `viewport_internal`.
+- `processId` and `projectRoot` identify the intended editor.
+- `outputExists` is true and `outputSizeBytes` is nonzero.
+- `artclawRunId` and `artclawReportPath` provide in-editor execution evidence.
 
-- `success`: capture succeeded.
-- `processId`, `windowTitle`, `windowHandle`: target identity.
-- `rect`, `width`, `height`: captured region.
-- `isIconic`: must be false.
-- `warning`: non-empty means evidence may be unreliable.
-
-Viewport metadata fields to check:
-
-- `success`: capture succeeded.
-- `captureMode`: `viewport_internal`.
-- `processId`, `projectRoot`: target identity.
-- `width`, `height`: requested screenshot size.
-- `artclawRunId`, `artclawReportPath`: in-editor execution evidence.
-- `outputExists`, `outputSizeBytes`: file sanity.
-- `warning`: non-empty means evidence may need manual interpretation.
+The image alone does not prove whether the source was PIE or editor scene view; use the metadata and ArtClaw report for that distinction.
 
 ## Escalation
 
-- If viewport PNG is insufficient and GPU pass evidence is needed, use `ue-renderdoc-capture`.
-- If full IDE screenshot must be occlusion-safe, this skill cannot guarantee it; prefer exporting asset/graph metadata as JSON plus viewport screenshot.
+- For complete editor UI: use `windows-graphics-capture`.
+- For GPU pass or shader evidence: use `ue-renderdoc-capture`.
