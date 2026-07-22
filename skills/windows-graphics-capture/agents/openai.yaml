@@ -1,0 +1,4 @@
+interface:
+  display_name: "Windows Occlusion-Safe Capture"
+  short_description: "Capture complete occluded Windows application UI"
+  default_prompt: "Use $windows-graphics-capture to capture a specified Windows window even when it is occluded."
