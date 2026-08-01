@@ -1,0 +1,4 @@
+interface:
+  display_name: "Design Closure Review"
+  short_description: "从抽象、状态、边界、演化和规模维度审查设计是否闭合"
+  default_prompt: "Use $design-closure-review to review this design from first principles and expose unresolved structural risks."
