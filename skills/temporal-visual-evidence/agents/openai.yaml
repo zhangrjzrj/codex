@@ -1,0 +1,4 @@
+interface:
+  display_name: "Temporal Visual Evidence"
+  short_description: "Record windows and analyze dynamic visual artifacts"
+  default_prompt: "Use $temporal-visual-evidence to record a target window and produce temporal-difference evidence."
