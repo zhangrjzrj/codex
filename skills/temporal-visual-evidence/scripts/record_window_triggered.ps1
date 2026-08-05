@@ -68,6 +68,7 @@ while (-not (Test-Path -LiteralPath $readyFile)) {
 }
 
 $triggerIssuedAt = (Get-Date).ToString('o')
+$global:LASTEXITCODE = 0
 & $triggerScript @TriggerArgumentList
 $triggerExitCode = $LASTEXITCODE
 if ($null -eq $triggerExitCode) { $triggerExitCode = 0 }
