@@ -1,6 +1,6 @@
 ---
 name: "windows-uia-operator"
-description: "Inspect and operate Windows desktop UI through Microsoft UI Automation with minimal keyboard/mouse interference. Use when Codex needs to enumerate Windows windows, dump an accessibility/control tree, invoke buttons/menu items, set edit values, select list items, handle system dialogs/file pickers/installers, or run a PC GUI feedback loop where CDP/ADB/app-specific APIs do not cover the desktop shell."
+description: "Inspect and operate Windows desktop UI through Microsoft UI Automation with minimal keyboard/mouse interference. Use when Codex needs to enumerate Windows windows, dump an accessibility/control tree, invoke buttons/menu items, set edit values, select list items, handle system dialogs, file pickers, installer forms, or fill and submit ordinary desktop launch/configuration pages such as RenderDoc's launch tab when browser, ADB, and app-specific APIs do not cover the desktop shell."
 ---
 
 # Windows UIA Operator
@@ -53,6 +53,27 @@ Selector options:
 4. Run the structured action.
 5. Dump the relevant tree again or take a screenshot if the visual state matters.
 6. If UIA cannot see the inner controls, switch to a better channel: CDP for browser content, app APIs/logs, or screenshot/OCR fallback.
+
+## RenderDoc Launch Flow
+
+Use this flow when Codex needs to fill RenderDoc's `Launch Application` page without stealing the mouse or keyboard.
+
+1. Confirm the top-level window exists with `-TitleRegex "RenderDoc v1\\..*"`.
+2. Prefer UIA `Edit` controls and `ValuePattern` to fill:
+   - `Program`
+   - `Working Directory`
+   - `Command-line Arguments`
+3. Prefer stable selectors in this order:
+   - label-specific `NameRegex` when the control exposes it
+   - `AutomationId` if RenderDoc starts exposing one
+   - bounded positional targeting among the window's `Edit` descendants only when the tree is stable and the first two options are unavailable
+4. Submit with UIA `InvokePattern` on the `Launch` button.
+5. Verify the outcome outside the form:
+   - target process exists
+   - expected command line is present
+   - tool-specific readiness evidence appears in logs
+
+For Unreal + RenderDoc specifically, treat `UIA filled the form` and `Launch completed a usable capture session` as two separate checks. Do not mark the flow complete until UE is alive with `-AttachRenderDoc` and the UE log shows `RenderDoc plugin is ready!`.
 
 ## Limits
 
