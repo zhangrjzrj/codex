@@ -21,6 +21,7 @@ LOG_FILE_ALT = os.path.join(os.environ.get("LOCALAPPDATA", ""), "CodexNotify", "
 MSG_FILE = os.path.join(SCRIPT_DIR, "codex-notify-msg.txt")
 PS1_FILE = os.path.join(SCRIPT_DIR, "codex-notify-toast.ps1")
 TASK_NAME = "CodexNotify"
+TASK_INBOX_SCRIPT = os.path.join(SCRIPT_DIR, "skills", "cli-inbox", "scripts", "task_inbox.py")
 
 
 def log(msg: str) -> None:
@@ -133,6 +134,43 @@ def show_toast_via_task(title: str, message: str) -> bool:
     return r.returncode == 0
 
 
+def add_inbox_item(notification: dict, message: str) -> None:
+    if notification.get("type") != "agent-turn-complete":
+        return
+    thread_id = str(notification.get("thread-id") or "").strip()
+    turn_id = str(notification.get("turn-id") or "").strip()
+    cwd = str(notification.get("cwd") or "").strip()
+    client = str(notification.get("client") or "").strip()
+    title = re.sub(r"\s+", " ", message).strip()[:80] or "任务完成"
+    if not thread_id or not turn_id:
+        return
+    cmd = [
+        sys.executable,
+        TASK_INBOX_SCRIPT,
+        "add",
+        "--id",
+        turn_id,
+        "--title",
+        title,
+        "--cli-title",
+        client,
+        "--session-id",
+        thread_id,
+        "--workdir",
+        cwd,
+        "--message",
+        message,
+    ]
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+    log(f"inbox add rc={r.returncode} out={r.stdout.strip()[:120]!r} err={r.stderr.strip()[:120]!r}")
+    subprocess.run(
+        [sys.executable, TASK_INBOX_SCRIPT, "refresh-title"],
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+
+
 def main() -> int:
     from datetime import datetime
     log(f"--- {datetime.now().isoformat()} ---")
@@ -159,6 +197,7 @@ def main() -> int:
         message = re.sub(r"\s+", " ", message).strip(" -:|") or "Turn complete."
     title = (os.environ.get("CODEX_NOTIFY_TITLE") or "任务完成").strip() or "任务完成"
     log(f"message={repr(message[:80])}")
+    add_inbox_item(notification, message)
 
     try:
         import winsound

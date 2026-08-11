@@ -393,7 +393,7 @@ function Start-CodexSession {
     if ($UseWindowsTerminal) {
         $args = @("new-tab")
         if ($Title) {
-            $args += @("--title", $Title, "--suppressApplicationTitle")
+            $args += @("--title", $Title)
         }
         $args += @("powershell", "-NoExit", "-Command", $cmd)
         if ($DryRun) {

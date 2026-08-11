@@ -1,0 +1,4 @@
+interface:
+  display_name: "CLI Inbox"
+  short_description: "File-backed unread inbox for CLI task notifications"
+  default_prompt: "Manage a file-backed unread inbox for CLI task notifications. List pending items, open one, and ack it by removing the pending record. Prefer the minimal state machine: pending only, no archive."
