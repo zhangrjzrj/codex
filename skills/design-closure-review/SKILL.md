@@ -1,6 +1,6 @@
 ---
 name: "design-closure-review"
-description: "Review a software, protocol, state-machine, knowledge-system, or AI-agent design for structural closure before implementation. Use when the user asks to find hidden ambiguity, reason from first principles, test abstraction boundaries, prevent state/version/combination explosion, compare alternative models, or make a design precise enough for unambiguous coding."
+description: "Review a software, protocol, state-machine, knowledge-system, AI-agent design, or specification change for structural closure and logical minimality. Use when the user asks to find hidden ambiguity, check a changed spec against itself or related specs, reason from first principles, test abstraction boundaries, prevent state/version/combination explosion, remove redundant concepts, compare alternative models, or make a design precise enough for unambiguous coding."
 ---
 
 # Design Closure Review
@@ -8,6 +8,26 @@ description: "Review a software, protocol, state-machine, knowledge-system, or A
 Treat the proposed design as a model that must remain coherent under execution, failure, concurrency, growth, and migration. Do not wait for the user to identify contradictions.
 
 ## Workflow
+
+### 0. Establish the review surface
+
+When reviewing a specification change:
+
+1. Read the diff before reading the whole document.
+2. Extract every changed concept, field, state, invariant, transition, owner, and source of truth.
+3. Search the current specification for all definitions and references to those items.
+4. Search related specifications for the same items and for concepts connected by references, lifecycle, publication, validation, or ownership.
+5. Build the smallest affected rule graph. Do not treat files as independent when their rules share an entity or transition.
+
+Classify each finding as one of:
+
+- contradiction within the changed section
+- contradiction elsewhere in the same specification
+- contradiction with another specification
+- undefined or stale reference
+- duplicated truth or responsibility
+- unnecessary concept, field, state, branch, version, or process
+- wording ambiguity that permits materially different implementations
 
 ### 1. Establish the minimal model
 
@@ -47,6 +67,16 @@ After finding a problem, inspect the proposed fix against all ten dimensions. A 
 
 Stop when remaining questions are implementation details that follow mechanically from the model. Do not continue inventing abstractions merely because more abstraction is possible.
 
+### 4. Recheck the specifications
+
+After a proposed or applied change:
+
+1. Re-run the affected-term and reference searches.
+2. Re-read every changed definition together with its callers, consumers, validation rules, failure exits, and publication rules.
+3. Confirm that superseded terms and rules are removed rather than left as competing historical language.
+4. Confirm that related specifications either remain compatible or are updated in the same change.
+5. Repeat the minimality test on the fix itself; reject a fix that closes one contradiction by adding a parallel source of truth or an unnecessary state.
+
 ## Reasoning Rules
 
 - Prefer one source of truth and derive projections mechanically.
@@ -59,6 +89,10 @@ Stop when remaining questions are implementation details that follow mechanicall
 - Test first creation, reuse, failure after side effects, and replacement of an active version.
 - Use fail fast when the post-side-effect state is uncertain; do not hide uncertainty with fallback execution.
 - Challenge any field or state whose removal does not change behavior, meaning, validation, or governance.
+- Apply logical minimality, not linguistic compression. A specification may explain a rule fully, but every concept, field, state, branch, version, and process must carry an independent necessary responsibility.
+- For each proposed element, ask: if it is removed and the remaining rules are derived from existing truth, does any required behavior, semantic distinction, validation boundary, auditability, or governance guarantee disappear? If not, remove it.
+- Prefer deriving data from authoritative facts over persisting a second representation. Performance caches must be explicitly rebuildable and must not become truth.
+- Do not call a design minimal merely because it has fewer words. Dense wording that hides multiple rules, implicit states, or unresolved branches is not simplification.
 
 ## Communication
 
@@ -77,6 +111,12 @@ Use numbered findings so the user can respond point by point. Lead with the high
 
 未闭合问题：
 1. 问题、反例、根因、影响。
+
+跨 Spec 一致性：
+同一 Spec 与相关 Spec 中受影响的定义、引用和冲突。
+
+逻辑最简检查：
+可删除项、重复真相，以及不能删除项所承担的独立责任。
 
 最小修正：
 1. 需要改变的边界或结构。
