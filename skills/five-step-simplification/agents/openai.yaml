@@ -1,0 +1,4 @@
+interface:
+  display_name: "Five-Step Simplification"
+  short_description: "按固定顺序删减需求、结构与流程，再进行优化和自动化"
+  default_prompt: "Use $five-step-simplification to apply the requested first N steps to this specification or system design."
