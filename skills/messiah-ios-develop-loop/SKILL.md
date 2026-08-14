@@ -1,6 +1,6 @@
 ---
 name: "messiah-ios-develop-loop"
-description: "Close the complete Messiah public develop iOS loop on a remote Mac: locate an integrated commit, create an isolated worktree, pull required Git LFS artifacts, prepare Resources.mpk, generate the Xcode project, build with an SSH-capable signing keychain, verify and install Game.app, launch it, establish iproxy, control it through Telnet, verify NBS playback, and collect crash evidence. Use when Codex needs to reproduce or validate a Messiah develop iOS version end to end rather than only compile or sign it."
+description: "Close the complete Messiah public develop iOS loop on a remote Mac: locate an integrated commit, create an isolated worktree, pull required Git LFS artifacts, prepare Resources.mpk, generate the Xcode project, build with an SSH-capable signing keychain, verify and install Game.app, inject and verify the complete runtime shader patch plus NBS asset, launch it, establish iproxy, control it through Telnet, verify NBS playback and visual correctness, and collect crash evidence. Use when Codex needs to reproduce or validate a Messiah develop iOS version end to end rather than only compile or sign it."
 ---
 
 # Messiah iOS Develop Loop
@@ -29,6 +29,8 @@ target commit
 → device install registration
 → device launch
 → iproxy/Telnet welcome
+→ full shader roots copied, verified, and refreshed
+→ NBS asset copied and verified
 → NBS ready or proven native crash
 ```
 
@@ -53,9 +55,11 @@ If playback produces a native crash report, report the closed loop as blocked at
 6. Run long builds in the remote background with a PID and log; poll process and log progress.
 7. Use the exact `Game.app` path reported by the build log; do not guess DerivedData paths.
 8. Query the installed app immediately after `devicectl install`; retrying launch without proving registration hides the real failure.
-9. Treat Telnet forwarding as a separate gate from app launch.
-10. For new `switchToFile`-based NBS playback, use a Messiah-mounted path such as `LocalData/Videos/<file>.nbs`; historical `Videos/<file>.nbs` applies to the older direct-create route.
-11. Preserve crash logs and compare old/new library versions with the same app, file, device, and playback command.
+9. Do not accept MPK-bundled shaders as the NBS visual baseline. Overlay both `Engine/EngineShaders` and `Engine/Shaders` into `Documents/LocalData/Patch/Shaders`, clear stale shader caches, and prove refresh or reload before playback.
+10. Copy the exact NBS asset into the app data container and verify the device-side size or hash before playback.
+11. Treat Telnet forwarding as a separate gate from app launch.
+12. For new `switchToFile`-based NBS playback, use a Messiah-mounted path such as `LocalData/Videos/<file>.nbs`; historical `Videos/<file>.nbs` applies to the older direct-create route.
+13. Preserve crash logs and compare old/new library versions with the same app, shader patch, NBS file, device, and playback command.
 
 ## Stop conditions
 

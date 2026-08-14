@@ -180,7 +180,36 @@ xcrun devicectl device info apps \
 
 Do not launch until `Game` appears in the app list.
 
-## 10. Launch and forward Telnet
+## 10. Stage the NBS asset
+
+Do not assume the app bundle or `Resources.mpk` contains the test NBS. Stage the exact file into the app data container after installation:
+
+```bash
+NBS_SOURCE=/absolute/path/to/horror.nbs
+STAGE=/tmp/j_ios_nbs_payload
+rm -rf "$STAGE"
+mkdir -p "$STAGE/Videos"
+cp "$NBS_SOURCE" "$STAGE/Videos/horror.nbs"
+
+xcrun devicectl device copy to \
+  --device 11E6D8F3-8AF5-5A99-BFC3-B5AE7759A13B \
+  --domain-type appDataContainer \
+  --domain-identifier com.netease.technicalcenter \
+  --source "$STAGE/Videos" \
+  --destination Documents/LocalData/Videos
+```
+
+This must produce:
+
+```text
+Documents/LocalData/Videos/horror.nbs
+```
+
+Pull the file or its parent directory back with `devicectl device copy from`. Compare byte size and SHA-256 with `NBS_SOURCE`; the playback gate remains closed until they match.
+
+For the historical direct-create route, stage the same file under `Documents/Videos/horror.nbs` instead.
+
+## 11. Launch and forward Telnet
 
 The device must be unlocked:
 
@@ -200,7 +229,59 @@ Keep USB forwarding alive in the background:
 
 Telnet must return `Welcome to messiah server` from `127.0.0.1:19113`.
 
-## 11. Place and play NBS
+## 12. Replace MPK shaders with the complete source roots
+
+The default iOS runtime can load shaders from `Resources.mpk`. NBS may decode successfully while rendering with an older MPK shader, producing panorama distortion, incorrect projection, purple output, or other false visual failures.
+
+Do not copy only `UI/UIMiniGifImage.fx`. The verified hot-update path requires the union of both source roots because `EngineShaders` depends on includes and supporting shaders from `Engine/Shaders`:
+
+```text
+Engine/EngineShaders/*
+Engine/Shaders/*
+        ↓ merge
+Documents/LocalData/Patch/Shaders/*
+```
+
+Prepare one staging directory on the Mac:
+
+```bash
+SHADER_STAGE=/tmp/j_ios_shader_payload
+rm -rf "$SHADER_STAGE"
+mkdir -p "$SHADER_STAGE"
+cp -R Engine/EngineShaders/. "$SHADER_STAGE/"
+cp -R Engine/Shaders/. "$SHADER_STAGE/"
+```
+
+For a reused app data container, use Telnet before playback to remove these exact stale paths:
+
+```text
+Documents/LocalData/Patch/Shaders
+Documents/LocalData/Cache/Shaders
+Documents/LocalData/Cache/ShaderBin
+Documents/LocalData/Cache/LocalShaders
+```
+
+Then copy the complete merged tree:
+
+```bash
+xcrun devicectl device copy to \
+  --device 11E6D8F3-8AF5-5A99-BFC3-B5AE7759A13B \
+  --domain-type appDataContainer \
+  --domain-identifier com.netease.technicalcenter \
+  --source "$SHADER_STAGE" \
+  --destination Documents/LocalData/Patch/Shaders
+```
+
+Verify at minimum that the device contains:
+
+```text
+Documents/LocalData/Patch/Shaders/UI/UIMiniGifImage.fx
+Documents/LocalData/Patch/Shaders/YUVDecode.fx
+```
+
+Pull representative files back and compare SHA-256 with the staged sources. After copying, call `MRender.RefreshShaderSource(callback)` through Telnet and require a successful callback, or terminate and relaunch the app before creating the NBS node. A successful decoder state without this shader gate does not prove visual correctness.
+
+## 13. Play and verify NBS
 
 Historical direct-create builds used:
 
@@ -228,7 +309,9 @@ isVisible()
 
 Pass only when the runtime state meets the success contract.
 
-## 12. Crash evidence and A/B
+For panorama acceptance, also capture a screenshot after the shader refresh/relaunch and confirm that the image is not distorted, flattened, purple, or black. Runtime readiness and visual correctness are separate gates.
+
+## 14. Crash evidence and A/B
 
 If Telnet resets after decoder creation:
 
@@ -237,6 +320,6 @@ If Telnet resets after decoder creation:
 3. Pull the newest `Game-*.ips` into `.j-evidence/`.
 4. Record exception, faulting thread, NBS frames, app UUID, library version, file path, and playback parameters.
 5. Rebuild with only the intended prior library/header files changed.
-6. Re-run the identical install/launch/playback command.
+6. Re-run with the identical shader payload, NBS file, install/launch sequence, and playback command.
 
 Never use a different NBS file or playback path for the comparison.

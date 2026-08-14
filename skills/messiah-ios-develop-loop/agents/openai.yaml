@@ -1,4 +1,4 @@
 interface:
   display_name: "Messiah iOS Develop 闭环"
-  short_description: "公版 develop 从取码到真机 NBS 完整验证"
-  default_prompt: "使用 $messiah-ios-develop-loop 在 Mac 上闭环公版 Messiah develop 的 iOS 生成、签名构建、安装、拉起、Telnet 与 NBS 验证。"
+  short_description: "公版 develop 从取码到真机 NBS 与 Shader 完整验证"
+  default_prompt: "使用 $messiah-ios-develop-loop 在 Mac 上闭环公版 Messiah develop 的 iOS 生成、签名构建、安装、Shader Patch 与 NBS 入机校验、拉起、Telnet、播放和视觉验证。"
