@@ -1,0 +1,4 @@
+interface:
+  display_name: "当前渠道模型测速"
+  short_description: "固定当前 provider，使用独立多 CLI 比较全部模型稳定性"
+  default_prompt: "使用 $model-channel-benchmark 固定当前 provider，枚举并比较其下全部模型的延迟、成功率和稳定性。"
