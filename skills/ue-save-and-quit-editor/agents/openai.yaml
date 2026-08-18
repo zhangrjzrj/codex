@@ -1,0 +1,4 @@
+interface:
+  display_name: "UE Save Quit"
+  short_description: "Save dirty packages and quit Unreal Editor"
+  default_prompt: "Use this skill to save all dirty Unreal Editor packages and then quit the editor cleanly without getting blocked by save confirmation dialogs."
