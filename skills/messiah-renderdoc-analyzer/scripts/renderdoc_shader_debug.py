@@ -122,6 +122,8 @@ result = {
     },
     "target": {
         "event_id": int(cfg.get("event_id", 0) or 0),
+        "output_event_id": int(cfg.get("output_event_id", 0) or 0),
+        "output_resource_id": cfg.get("output_resource_id", ""),
         "stage": cfg.get("stage", "pixel"),
         "custom_name": "",
     },
@@ -133,6 +135,7 @@ result = {
         "mode": "replace_resource",
         "entry_point": cfg.get("entry", "EditedShaderPS"),
         "compile_messages": "",
+        "additional_replacements": [],
     },
     "output": {
         "resource_id": "",
@@ -190,6 +193,16 @@ def active_output_target(controller, pipe_state, fallback_targets):
         except Exception:
             pass
     return fallback_targets[0] if fallback_targets else None
+
+def resolve_texture_resource(controller, requested_resource_id):
+    requested = str(requested_resource_id or "").strip()
+    if not requested:
+        return rd.ResourceId.Null()
+    for texture in list(controller.GetTextures() or []):
+        resource_id = getattr(texture, "resourceId", rd.ResourceId.Null())
+        if str(resource_id) == requested:
+            return resource_id
+    raise RuntimeError("output texture resource not found: " + requested)
 
 def save_target_png(controller, target, resource_id, png_path):
     save = rd.TextureSave()
@@ -361,14 +374,18 @@ def replay_callback(controller):
 
         result["shader"]["mode"] = mode
         targets = valid_output_targets(pipe_state)
-        if not targets:
+        requested_output_resource = str(cfg.get("output_resource_id", "") or "").strip()
+        if not targets and not requested_output_resource:
             raise RuntimeError("no valid output render target at event")
         chosen = active_output_target(controller, pipe_state, targets)
-        if chosen is None:
+        if chosen is None and not requested_output_resource:
             raise RuntimeError("no active output render target resolved at event")
-        slot0, target0, target_resource0 = chosen
-        result["output"]["resource_id"] = str(target_resource0)
-        result["output"]["selected_slot"] = int(slot0)
+        if chosen is not None:
+            slot0, target0, target_resource0 = chosen
+            result["output"]["resource_id"] = str(target_resource0)
+            result["output"]["selected_slot"] = int(slot0)
+        else:
+            slot0, target0, target_resource0 = -1, None, rd.ResourceId.Null()
 
         output_base, output_ext = os.path.splitext(cfg["output_png"])
         all_rows = []
@@ -376,16 +393,64 @@ def replay_callback(controller):
             if mode == "replace_resource":
                 result["shader"]["replace_target_resource_id"] = str(replace_target)
                 controller.ReplaceResource(replace_target, replacement)
-                controller.SetFrameEvent(event_id, True)
+                replaced_resource_ids = {str(replace_target)}
+                for additional_event_id in list(cfg.get("additional_event_ids", []) or []):
+                    controller.SetFrameEvent(int(additional_event_id), True)
+                    additional_pipeline = controller.GetPipelineState()
+                    additional_original = additional_pipeline.GetShader(stage_enum)
+                    if additional_original == rd.ResourceId.Null() or str(additional_original) in replaced_resource_ids:
+                        continue
+                    additional_reflection = additional_pipeline.GetShaderReflection(stage_enum)
+                    additional_debug_info = getattr(additional_reflection, "debugInfo", None)
+                    additional_flags = getattr(additional_debug_info, "compileFlags", rd.ShaderCompileFlags())
+                    additional_entry = requested_entry or str(getattr(additional_debug_info, "entrySourceName", "") or getattr(additional_reflection, "entryPoint", "") or entry)
+                    additional_replacement, additional_messages = controller.BuildTargetShader(
+                        additional_entry,
+                        rd.ShaderEncoding.HLSL,
+                        source,
+                        additional_flags,
+                        stage_enum,
+                    )
+                    if additional_replacement == rd.ResourceId.Null():
+                        raise RuntimeError("BuildTargetShader failed for additional event " + str(additional_event_id) + ": " + str(additional_messages))
+                    controller.ReplaceResource(additional_original, additional_replacement)
+                    replaced_resource_ids.add(str(additional_original))
+                    result["shader"]["additional_replacements"].append({
+                        "event_id": int(additional_event_id),
+                        "original_resource_id": str(additional_original),
+                        "replacement_resource_id": str(additional_replacement),
+                        "entry_point": additional_entry,
+                        "compile_messages": str(additional_messages or ""),
+                    })
+                output_event_id = int(cfg.get("output_event_id", 0) or event_id)
+                controller.SetFrameEvent(output_event_id, True)
+                requested_output_resource = str(cfg.get("output_resource_id", "") or "").strip()
+                if requested_output_resource:
+                    target_resource0 = resolve_texture_resource(controller, requested_output_resource)
+                    targets = []
+                    result["output"]["resource_id"] = str(target_resource0)
+                    result["output"]["selected_slot"] = -1
+                elif output_event_id != event_id:
+                    output_pipe_state = controller.GetPipelineState()
+                    targets = valid_output_targets(output_pipe_state)
+                    if not targets:
+                        raise RuntimeError("no valid output render target at output event")
+                    chosen = active_output_target(controller, output_pipe_state, targets)
+                    if chosen is None:
+                        raise RuntimeError("no active output render target resolved at output event")
+                    slot0, target0, target_resource0 = chosen
+                    result["output"]["resource_id"] = str(target_resource0)
+                    result["output"]["selected_slot"] = int(slot0)
+                result["output"]["event_id"] = output_event_id
                 save_result, display_readback_len = save_display_png(
-                    controller, event_id, target_resource0, cfg["output_png"]
+                    controller, output_event_id, target_resource0, cfg["output_png"]
                 )
                 result["output"]["save_result"] = str(save_result)
                 result["output"]["readback_len"] = int(display_readback_len)
                 for slot, target, resource_id in targets:
                     slot_png = f"{output_base}.slot{slot}{output_ext}"
                     slot_save_result, slot_readback_len = save_display_png(
-                        controller, event_id, resource_id, slot_png
+                        controller, output_event_id, resource_id, slot_png
                     )
                     all_rows.append(
                         {
@@ -527,6 +592,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Apply a RenderDoc shader replacement and export a debug PNG.")
     parser.add_argument("--rdc-path", required=True)
     parser.add_argument("--event-id", required=True, type=int)
+    parser.add_argument("--output-event-id", type=int, default=0)
+    parser.add_argument("--output-resource-id", default="")
+    parser.add_argument("--additional-event-id", action="append", type=int, default=[])
     parser.add_argument("--shader-path", required=True)
     parser.add_argument("--output-png", required=True)
     parser.add_argument("--output-json", required=True)
@@ -556,6 +624,9 @@ def main() -> int:
     cfg = {
         "rdc_path": str(rdc_path),
         "event_id": int(args.event_id),
+        "output_event_id": int(args.output_event_id),
+        "output_resource_id": args.output_resource_id,
+        "additional_event_ids": args.additional_event_id,
         "shader_path": str(shader_path),
         "output_png": str(output_png),
         "output_json": str(output_json),

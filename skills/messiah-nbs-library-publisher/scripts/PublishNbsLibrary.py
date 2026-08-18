@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import shutil
+import subprocess
 import sys
 import tempfile
 import zipfile
@@ -42,7 +43,7 @@ def _require_file(path: Path) -> Path:
     return path
 
 
-def _build_ops(staging_root: Path, engine_root: Path, ps5_variant: str) -> list[CopyOp]:
+def _build_ops(staging_root: Path, engine_root: Path, ps5_variant: str, include_asan: bool) -> list[CopyOp]:
     ops: list[CopyOp] = []
 
     def add(src: Path, dst_rel: Path) -> None:
@@ -90,6 +91,14 @@ def _build_ops(staging_root: Path, engine_root: Path, ps5_variant: str) -> list[
     win_static_md_decoder = _find_single_dir(win_static_md_root, "libNewBasisDecoder-")
     add(win_static_md_decoder / "lib" / "libNewBasisDecoder.lib", LIB_DIR / "windows" / "x64" / "release-md" / "libNewBasisDecoder.lib")
 
+    if include_asan:
+        win_asan_root = staging_root / "windows-asan"
+        win_asan_hybrid = _find_single_dir(win_asan_root, "hybrid")
+        win_asan_release = _find_single_dir(win_asan_root, "release")
+        add(win_asan_hybrid / "libNewBasisDecoder.dll", LIB_DIR / "windows" / "asan-windows" / "hybrid" / "libNewBasisDecoder.dll")
+        add(win_asan_hybrid / "libNewBasisDecoder.pdb", LIB_DIR / "windows" / "asan-windows" / "hybrid" / "libNewBasisDecoder.pdb")
+        add(win_asan_release / "libNewBasisDecoder.lib", LIB_DIR / "windows" / "asan-windows" / "release" / "libNewBasisDecoder.lib")
+
     win_extend = _find_single_dir(win_md_root, "nbs_extend-")
     for subdir in ("develop", "release"):
         add(win_extend / "bin" / "nbsextend.dll", NBSEXTEND_DIR / "windows" / "x64" / subdir / "nbsextend.dll")
@@ -112,27 +121,50 @@ def _apply_ops(ops: list[CopyOp], dry_run: bool) -> None:
         shutil.copy2(op.src, op.dst)
 
 
+def _extract_archive(archive_path: Path, staging_root: Path) -> None:
+    suffix = archive_path.suffix.lower()
+    if suffix == ".zip":
+        with zipfile.ZipFile(archive_path) as archive:
+            archive.extractall(staging_root)
+        return
+    if suffix == ".7z":
+        seven_zip = shutil.which("7z")
+        if seven_zip is None:
+            default_seven_zip = Path("C:/Program Files/7-Zip/7z.exe")
+            if not default_seven_zip.is_file():
+                raise SystemExit("未找到 7z.exe，无法解压 .7z 交付包")
+            seven_zip = str(default_seven_zip)
+        subprocess.run(
+            [seven_zip, "x", str(archive_path), f"-o{staging_root}", "-y"],
+            check=True,
+        )
+        return
+    raise SystemExit(f"不支持的压缩包格式: {archive_path.suffix}")
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description="从 NBS ZIP 包向 Messiah 引擎发布库文件")
-    parser.add_argument("zip_path", help="下载的 NBS 库 zip 路径")
+    parser = argparse.ArgumentParser(description="从 NBS ZIP/7z 包向 Messiah 引擎发布库文件")
+    parser.add_argument("archive_path", help="下载的 NBS 库 ZIP 或 7z 路径")
     parser.add_argument("engine_root", help="Messiah 引擎根路径，例如 F:\\messiah_official\\messiah_develop")
     parser.add_argument("--ps5-variant", choices=["12", "13"], required=True, help="PS5 发布变体，只能二选一")
+    parser.add_argument("--asan", action="store_true", help="同时发布 Windows ASAN Hybrid/Release 变体")
     parser.add_argument("--dry-run", action="store_true", help="只打印，不落文件")
     args = parser.parse_args()
 
-    zip_path = Path(args.zip_path).resolve()
+    archive_path = Path(args.archive_path).resolve()
     engine_root = Path(args.engine_root).resolve()
-    if not zip_path.is_file():
-        raise SystemExit(f"ZIP不存在: {zip_path}")
+    if not archive_path.is_file():
+        raise SystemExit(f"压缩包不存在: {archive_path}")
     _require_dir(engine_root, "引擎根目录")
     _require_dir(engine_root / "Engine" / "Sources" / "External" / "miniGif", "miniGif目录")
     _require_dir(engine_root / "Engine" / "Sources" / "External" / "nbsextend", "nbsextend目录")
 
     with tempfile.TemporaryDirectory(prefix="publish_nbs_") as temp_dir:
-        staging_root = Path(temp_dir) / "zip"
-        with zipfile.ZipFile(zip_path) as zf:
-            zf.extractall(staging_root)
-        ops = _build_ops(staging_root, engine_root, args.ps5_variant)
+        staging_root = Path(temp_dir) / "archive"
+        _extract_archive(archive_path, staging_root)
+        children = list(staging_root.iterdir())
+        archive_root = children[0] if len(children) == 1 and children[0].is_dir() else staging_root
+        ops = _build_ops(archive_root, engine_root, args.ps5_variant, args.asan)
         _apply_ops(ops, args.dry_run)
 
     print(f"完成，共处理 {len(ops)} 个文件")
