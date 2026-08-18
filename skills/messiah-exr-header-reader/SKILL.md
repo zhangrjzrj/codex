@@ -1,6 +1,6 @@
 ---
 name: "messiah-exr-header-reader"
-description: "Read key OpenEXR header attributes in the Messiah workflow, especially `depth_flag`, `MinDepth`, `MaxDepth`, `z_near`, and `z_far`, by compiling and running a tiny local OpenEXR probe against Messiah's bundled OpenEXR libraries. Use when a user wants to verify whether a recorded EXR frame was tagged correctly, inspect depth metadata for AOV/NBS debugging, or quickly check header values from files like `CharacterBoundDepth.exr`."
+description: "Read OpenEXR header attributes in the Messiah workflow, especially `depth_flag`, `MinDepth`, `MaxDepth`, `z_near`, `z_far`, and custom fields such as `RecordedPreExposure`, by compiling and running a tiny local OpenEXR probe against Messiah's bundled OpenEXR libraries. Use when a user wants to verify whether a recorded EXR frame was tagged correctly, inspect depth metadata for AOV/NBS debugging, or enumerate all header attributes from files like `CharacterBoundDepth.exr`."
 ---
 
 # Messiah EXR Header Reader
@@ -23,7 +23,8 @@ Typical files:
 
 1. Run the probe script with the target `.exr` path.
 2. Read the printed key attributes first.
-3. If needed, rerun with `--json` for machine-readable output.
+3. If needed, rerun with `--all-attrs` to enumerate every header attribute.
+4. Use `--json` for machine-readable output, or `--names-only` when only attribute names matter.
 
 ## Command
 
@@ -37,6 +38,18 @@ JSON output:
 
 ```powershell
 python C:\Users\zhangruojun\.codex\skills\messiah-exr-header-reader\scripts\read_exr_header.py "F:\74AOVOutput820_prez\1200CharacterBoundDepth.exr" --json
+```
+
+Full attribute listing:
+
+```powershell
+python C:\Users\zhangruojun\.codex\skills\messiah-exr-header-reader\scripts\read_exr_header.py "F:\74AOVOutput820_prez\1200CharacterBoundDepth.exr" --all-attrs
+```
+
+Attribute names only:
+
+```powershell
+python C:\Users\zhangruojun\.codex\skills\messiah-exr-header-reader\scripts\read_exr_header.py "F:\74AOVOutput820_prez\1200CharacterBoundDepth.exr" --names-only
 ```
 
 ## Notes

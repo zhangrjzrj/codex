@@ -11,9 +11,12 @@ import time
 from pathlib import Path
 
 
-CPP_SOURCE = r"""#include <iostream>
+CPP_SOURCE = r"""#include <iomanip>
+#include <iostream>
+#include <sstream>
 #include <string>
 #include <OpenEXR/ImfInputFile.h>
+#include <OpenEXR/ImfHeader.h>
 #include <OpenEXR/ImfFloatAttribute.h>
 #include <OpenEXR/ImfDoubleAttribute.h>
 #include <OpenEXR/ImfIntAttribute.h>
@@ -29,6 +32,27 @@ static bool readAttrAsDouble(const Imf::Header& header, const char* name, double
   if(t == Imf::StringAttribute::staticTypeName()){ out = std::stod(static_cast<const Imf::StringAttribute&>(attr).value()); return true; }
   return false;
 }
+static std::string readAttrValueAsString(const Imf::Attribute& attr){
+  std::string t = attr.typeName();
+  std::ostringstream oss;
+  oss << std::setprecision(17);
+  if(t == Imf::FloatAttribute::staticTypeName()){
+    oss << static_cast<const Imf::FloatAttribute&>(attr).value();
+    return oss.str();
+  }
+  if(t == Imf::DoubleAttribute::staticTypeName()){
+    oss << static_cast<const Imf::DoubleAttribute&>(attr).value();
+    return oss.str();
+  }
+  if(t == Imf::IntAttribute::staticTypeName()){
+    oss << static_cast<const Imf::IntAttribute&>(attr).value();
+    return oss.str();
+  }
+  if(t == Imf::StringAttribute::staticTypeName()){
+    return static_cast<const Imf::StringAttribute&>(attr).value();
+  }
+  return "<unsupported>";
+}
 int main(int argc, char** argv){
   if(argc < 2){
     std::cerr << "need path\n";
@@ -43,6 +67,11 @@ int main(int argc, char** argv){
     if(readAttrAsDouble(h, "MaxDepth", v)) std::cout << "MaxDepth=" << v << "\n"; else std::cout << "MaxDepth=<missing>\n";
     if(readAttrAsDouble(h, "z_near", v)) std::cout << "z_near=" << v << "\n"; else std::cout << "z_near=<missing>\n";
     if(readAttrAsDouble(h, "z_far", v)) std::cout << "z_far=" << v << "\n"; else std::cout << "z_far=<missing>\n";
+    for(Imf::Header::ConstIterator it = h.begin(); it != h.end(); ++it){
+      const char* name = it.name();
+      const Imf::Attribute& attr = it.attribute();
+      std::cout << "attr\t" << name << "\t" << attr.typeName() << "\t" << readAttrValueAsString(attr) << "\n";
+    }
     return 0;
   }catch(const std::exception& e){
     std::cerr << "ERR " << e.what() << "\n";
@@ -91,15 +120,23 @@ def build_probe(script_dir: Path, openexr_root: Path) -> Path:
     bat_path = cache_dir / "build_probe.bat"
     lock_path = cache_dir / "build_probe.lock"
 
-    if exe_path.exists():
+    source_changed = True
+    if cpp_path.exists():
+        source_changed = cpp_path.read_text(encoding="ascii") != CPP_SOURCE
+    if exe_path.exists() and not source_changed:
         return exe_path
 
     lock_handle = acquire_lock(lock_path)
     try:
-        if exe_path.exists():
+        source_changed = True
+        if cpp_path.exists():
+            source_changed = cpp_path.read_text(encoding="ascii") != CPP_SOURCE
+        if exe_path.exists() and not source_changed:
             return exe_path
 
         cpp_path.write_text(CPP_SOURCE, encoding="ascii")
+        if exe_path.exists():
+            exe_path.unlink()
 
         include_dir = openexr_root / "include"
         lib_dir = openexr_root / "lib" / "release"
@@ -156,18 +193,38 @@ def release_lock(lock_handle, lock_path: Path) -> None:
         pass
 
 
-def parse_probe_output(text: str) -> dict[str, float | None]:
+def parse_probe_output(text: str) -> tuple[dict[str, float | None], list[dict[str, str]]]:
     result: dict[str, float | None] = {}
+    all_attributes: list[dict[str, str]] = []
     for line in text.splitlines():
         line = line.strip()
-        if not line or "=" not in line:
+        if not line:
+            continue
+        if line.startswith("attr\t"):
+            parts = line.split("\t", 3)
+            if len(parts) == 3:
+                _, name, attr_type = parts
+                value = ""
+            elif len(parts) == 4:
+                _, name, attr_type, value = parts
+            else:
+                continue
+            all_attributes.append(
+                {
+                    "name": name,
+                    "type": attr_type,
+                    "value": value,
+                }
+            )
+            continue
+        if "=" not in line:
             continue
         key, value = line.split("=", 1)
         if value == "<missing>":
             result[key] = None
         else:
             result[key] = float(value)
-    return result
+    return result, all_attributes
 
 
 def main() -> int:
@@ -175,6 +232,8 @@ def main() -> int:
     parser.add_argument("exr_path")
     parser.add_argument("--openexr-root", default="")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--all-attrs", action="store_true")
+    parser.add_argument("--names-only", action="store_true")
     args = parser.parse_args()
 
     exr_path = Path(args.exr_path)
@@ -199,15 +258,35 @@ def main() -> int:
         sys.stderr.write(proc.stderr)
         return proc.returncode
 
+    key_attributes, all_attributes = parse_probe_output(proc.stdout)
+
     if args.json:
         payload = {
             "path": str(exr_path),
             "openexr_root": str(openexr_root),
-            "attributes": parse_probe_output(proc.stdout),
+            "attributes": key_attributes,
         }
+        if args.all_attrs or args.names_only:
+            payload["all_attributes"] = (
+                [item["name"] for item in all_attributes]
+                if args.names_only
+                else all_attributes
+            )
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
-        print(proc.stdout, end="")
+        for key in ("depth_flag", "MinDepth", "MaxDepth", "z_near", "z_far"):
+            value = key_attributes.get(key)
+            if value is None:
+                print(f"{key}=<missing>")
+            else:
+                print(f"{key}={value}")
+        if args.all_attrs or args.names_only:
+            if args.names_only:
+                for item in all_attributes:
+                    print(item["name"])
+            else:
+                for item in all_attributes:
+                    print(f'{item["name"]}\t{item["type"]}\t{item["value"]}')
     return 0
 
 
