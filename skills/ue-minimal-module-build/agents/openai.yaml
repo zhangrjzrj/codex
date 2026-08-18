@@ -1,0 +1,4 @@
+interface:
+  display_name: "UE Minimal Module Build"
+  short_description: "Compile one UE module without full-project rebuild"
+  default_prompt: "Use $ue-minimal-module-build to compile a specific Unreal Engine module with the smallest safe UBT scope."
