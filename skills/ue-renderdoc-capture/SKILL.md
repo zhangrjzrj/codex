@@ -1,6 +1,6 @@
 ---
 name: "ue-renderdoc-capture"
-description: "Capture real RenderDoc .rdc frames from a running Unreal Editor or PIE session. Use when Codex needs to close a UE visual/rendering feedback loop with GPU evidence, verify NBS/MRG/composition passes, capture PIE frames, or diagnose Unreal rendering issues where ordinary screenshots are insufficient."
+description: "Capture real RenderDoc .rdc frames from Unreal Editor, PIE, standalone, or a scoped UE RenderGraph path. Use when Codex needs GPU evidence, precise NBS/MRG/composition capture, playback ViewFamily capture, or repeated A/B rendering diagnosis without relying on window focus."
 ---
 
 # UE RenderDoc Capture
@@ -24,6 +24,21 @@ For pixels-only evidence, use `ue-window-capture` instead.
 5. Verify success from both:
    - UE log contains `Cmd: renderdoc.CaptureFrame` and `RenderDocPlugin: Capture frame and launch renderdoc!`
    - A new `.rdc` exists and has nonzero size.
+
+## Scoped RenderGraph Capture
+
+Prefer a code-level scoped capture when a specific UE render path must be isolated repeatedly.
+
+1. Locate the earliest callback that owns the target `FRDGBuilder` before target passes are registered.
+2. Create `RenderCaptureInterface::FScopedCapture` with that `FRDGBuilder`.
+3. Keep the object alive until the callback that finishes registering the required pass range.
+4. Do not call `GraphBuilder.Execute()` from a plugin. The RDG constructor schedules `BeginCapture` and its destructor schedules `EndCapture` in the graph.
+5. Gate capture by the real target world/view identity, not window focus. For playback, require `EWorldType::PIE` or `EWorldType::Game` and an active composition proxy.
+6. Use separate frame and request controls: frame selects the zero-based eligible render frame; incrementing request id rearms one capture without inventing persistent capture state.
+7. Verify the RDC event tree contains the target composition pass and required downstream passes before accepting success.
+8. For large full-ViewFamily captures, perform at most one scoped capture per Unreal Editor process. Restart the editor before another large capture; repeated captures can page-fault RenderDoc's D3D12 copy path on constrained GPUs.
+
+For a full playback frame, scope from `PreRenderViewFamily_RenderThread` through `PostRenderViewFamily_RenderThread`. For a narrow pass-only capture, scope around the registration block only when downstream effects are not required.
 
 ## Quick Command
 
@@ -77,6 +92,8 @@ If no `.rdc` is produced:
 - Recheck that `tools/list` includes `artclaw_renderdoc_capture_frame`.
 - If MCP is unavailable, recheck that the UE window is visible and not minimized for UI fallback.
 - If focus automation fails, ask the user to click the UE viewport or Cmd box and press `Alt+F12` or run `renderdoc.CaptureFrame`; then search for `.rdc`.
+- If a scoped request produces no RDC, log and verify request arming, eligible world type, target frame count, capture provider availability, and actual scope creation in that order.
+- If the RDC exists but misses downstream passes, widen the scope lifetime; do not add sleeps or call RDG execution manually.
 
 ## Expected Evidence
 

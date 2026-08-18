@@ -126,3 +126,75 @@ Key facts from those logs:
 - Avoid editing tracked signing files if command-line overrides are enough
 - Keep the remote source clean before judging signing results
 - Always save the current build log into `.codex-build/` for comparison
+
+## Closed-loop extension: build → install → launch
+
+When the goal is not only to compile, but to verify the iOS path end to end, continue after successful signing with:
+
+1. Install the signed `Game.app` to the target iPhone.
+2. Launch the app on the unlocked device.
+3. Confirm the app reaches the visible running state.
+4. Only after that, move to NBS asset injection and Telnet playback.
+
+Use the already verified signed app bundle path as the source of truth; do not regenerate signing inputs unless the install or launch step proves the bundle is stale.
+
+## Closed-loop extension: NBS file + Telnet playback
+
+After the app is launched successfully:
+
+1. Copy the target `.nbs` file into the iOS app Documents video path.
+2. Copy the required shader patch files into the iOS Documents patch shader path when the document requires it.
+3. Restore or attach to the Telnet control channel.
+4. Remove the splash screen first.
+5. Execute the playback script or direct NBS control command.
+6. Collect logs and decide pass/fail from the actual playback state, not from compile success alone.
+
+If Telnet is not available, treat that as a separate runtime/control blocker and do not roll back signing work that has already been proven valid.
+
+### iOS document-aligned file layout
+
+The previously verified iOS route uses these runtime paths:
+
+- NBS video:
+  - `Documents/Videos/<file>.nbs`
+- Shader patch:
+  - `Documents/LocalData/Patch/Shaders/UI/UIMiniGifImage.fx`
+  - when needed, also restore the matching shader roots under `Documents/LocalData/Patch/Shaders`
+
+For `devicectl`, keep in mind:
+
+- copying the `Videos` folder should result in files under `Documents/Videos`
+- do not assume `Documents/Package` is the correct runtime path for this iOS playback step
+
+### iOS Telnet facts from the verified route
+
+- Historical document text uses direct device IP with port `9113`
+- On the verified Mac CoreDevice route, the practical control endpoint became:
+  - `127.0.0.1:19113`
+
+So for this workflow:
+
+1. First try the CoreDevice-forwarded local endpoint `127.0.0.1:19113`.
+2. If that endpoint is absent, treat it as a runtime control readiness issue, not a signing regression.
+
+### Minimal playback command shape
+
+Use this order:
+
+1. `import MPlatform; MPlatform.RemoveEngineSplash()`
+2. clear or prepare the current scene
+3. create the node with `cc.MiniGifNode.create(...)`
+4. add it to the running scene
+5. poll `getDecoderId()` and `isVideoReady()`
+
+Prefer the verified relative path:
+
+- `Videos/horror.nbs`
+
+Prefer `MiniGifNode.create(...)` plus async readiness polling over calling `MNBSDecoder.Start(...)` directly on the Telnet main thread. The historical verified route reached:
+
+- `decoderId=0`
+- `isVideoReady=True`
+- `clipCount=1`
+
+That is the minimum closed-loop pass signal for the iOS NBS playback step before visual evidence is added.
