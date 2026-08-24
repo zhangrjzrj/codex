@@ -318,7 +318,13 @@ MiniGifNode.createPure(...)
 node.switchToFile('LocalData/Videos/<file>.nbs', ...)
 ```
 
-Remove the engine splash, add the node to a running scene, and poll:
+Before playback, clear the welcome layer from the running scene:
+
+```text
+Scene -> PanelRoot -> remove all welcome children
+```
+
+Then add the node to the now-empty running scene and poll:
 
 ```text
 getDecoderId()
