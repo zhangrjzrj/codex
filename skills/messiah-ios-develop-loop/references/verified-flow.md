@@ -87,17 +87,31 @@ Use a dedicated keychain rather than the GUI login keychain. The one-time setup 
 Verified paths:
 
 ```text
-~/Library/Keychains/ios_ci.keychain-db
-~/.ios_ci_keychain_pass
+/Users/game-netease/Desktop/ios_signing/build_reimport.keychain-db
+/Users/game-netease/.ios_ci_keychain_pass
+/Users/game-netease/Desktop/ios_signing/run_hybrid_gui.sh
 ```
 
 Protect the password file with mode `600`. Never print it. The keychain must contain the target identity and have the `apple-tool:,apple:,codesign:` partition list.
 
-Before a build, unlock without echoing the password:
+The verified minimal stable route keeps the external flow unchanged and moves keychain preparation into the build script itself. `run_hybrid_gui.sh` must:
+
+- read the password from `~/.ios_ci_keychain_pass`;
+- `security unlock-keychain` the dedicated build keychain;
+- run `security set-keychain-settings -lut 21600`;
+- run `security set-key-partition-list -S apple-tool:,apple:,codesign:`.
+
+Before a build, the equivalent preparation is:
 
 ```bash
-CI_KEYCHAIN="$HOME/Library/Keychains/ios_ci.keychain-db"
+CI_KEYCHAIN=/Users/game-netease/Desktop/ios_signing/build_reimport.keychain-db
 security unlock-keychain -p "$(cat "$HOME/.ios_ci_keychain_pass")" "$CI_KEYCHAIN"
+security set-keychain-settings -lut 21600 "$CI_KEYCHAIN"
+security set-key-partition-list \
+  -S apple-tool:,apple:,codesign: \
+  -s \
+  -k "$(cat "$HOME/.ios_ci_keychain_pass")" \
+  "$CI_KEYCHAIN"
 ```
 
 Run a disposable framework probe first:
@@ -117,10 +131,16 @@ Do not run the full build until this probe passes.
 
 ## 7. Build and sign Hybrid
 
-Run the long build remotely in the background and save PID/log:
+Run the long build remotely in the background and save PID/log. For the verified minimal route, prefer the wrapper script so the caller does not need extra signing steps:
 
 ```bash
-CI_KEYCHAIN="$HOME/Library/Keychains/ios_ci.keychain-db"
+/bin/bash /Users/game-netease/Desktop/ios_signing/run_hybrid_gui.sh
+```
+
+The wrapper currently expands to:
+
+```bash
+CI_KEYCHAIN=/Users/game-netease/Desktop/ios_signing/build_reimport.keychain-db
 xcodebuild \
   -project Engine/Intermediate/Messiah-iOS.xcodeproj \
   -scheme Game \

@@ -22,6 +22,9 @@ Typical triggers:
 - Remote Messiah root: `/Users/game-netease/Desktop/messiah_official_nbs_dev/messiah`
 - iOS target: `Game`
 - Known good bundle id: `com.netease.technicalcenter`
+- Verified build wrapper: `/Users/game-netease/Desktop/ios_signing/run_hybrid_gui.sh`
+- Verified dedicated keychain: `/Users/game-netease/Desktop/ios_signing/build_reimport.keychain-db`
+- Verified password file: `/Users/game-netease/.ios_ci_keychain_pass`
 - Known good manual signing parameters:
   - `CODE_SIGN_STYLE=Manual`
   - `DEVELOPMENT_TEAM=S3NPTV6S84`
@@ -65,8 +68,24 @@ That is acceptable because the real signing inputs are injected through `xcodebu
 
 ### 4. Run the verified manual-signing build
 
+Prefer the verified wrapper because it keeps the external flow unchanged while internally preparing the dedicated keychain for non-interactive SSH signing:
+
 ```powershell
-ssh mac-h74 "cd /Users/game-netease/Desktop/messiah_official_nbs_dev/messiah && xcodebuild -project Engine/Intermediate/Messiah-iOS.xcodeproj -scheme Game -configuration Hybrid -destination 'generic/platform=iOS' CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=S3NPTV6S84 PROVISIONING_PROFILE_SPECIFIER=profile5test \"CODE_SIGN_IDENTITY=Apple Development: Qinlin Li (XUKN5ANLY9)\" build | tee .codex-build/xcodebuild_hybrid_manual_profile_current.log"
+ssh mac-h74 "/bin/bash /Users/game-netease/Desktop/ios_signing/run_hybrid_gui.sh"
+```
+
+Its verified responsibilities are:
+
+- read the keychain password from `~/.ios_ci_keychain_pass`
+- unlock `build_reimport.keychain-db`
+- refresh keychain timeout with `security set-keychain-settings -lut 21600`
+- refresh private-key access with `security set-key-partition-list`
+- run `xcodebuild` with `OTHER_CODE_SIGN_FLAGS=--keychain /Users/game-netease/Desktop/ios_signing/build_reimport.keychain-db`
+
+If you need the expanded one-shot command instead of the wrapper:
+
+```powershell
+ssh mac-h74 "PASS=\$(cat /Users/game-netease/.ios_ci_keychain_pass); KEYCHAIN=/Users/game-netease/Desktop/ios_signing/build_reimport.keychain-db; security unlock-keychain -p \"\$PASS\" \"\$KEYCHAIN\"; security set-keychain-settings -lut 21600 \"\$KEYCHAIN\"; security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k \"\$PASS\" \"\$KEYCHAIN\"; cd /Users/game-netease/Desktop/messiah_official_nbs_dev/messiah && xcodebuild -project Engine/Intermediate/Messiah-iOS.xcodeproj -scheme Game -configuration Hybrid -destination 'generic/platform=iOS' 'OTHER_CODE_SIGN_FLAGS=--keychain /Users/game-netease/Desktop/ios_signing/build_reimport.keychain-db' CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=S3NPTV6S84 PROVISIONING_PROFILE_SPECIFIER=profile5test CODE_SIGN_IDENTITY=FEBBFCEF2905FD673C85B667231DFC180961F1F5 build | tee .codex-build/xcodebuild_hybrid_manual_profile_current.log"
 ```
 
 ### 5. Judge pass/fail from log
@@ -88,21 +107,22 @@ Failure triage:
 - `No profiles for 'com.netease.technicalcenter' were found`
   - profile missing or wrong team/profile combination
 - `errSecInternalComponent` during `CodeSign .../*.framework` or `CodeSign Game.app`
-  - first verify whether SSH can access the signing private key:
+  - first verify whether SSH can access the dedicated keychain/private key:
 
 ```powershell
-ssh mac-h74 "security show-keychain-info ~/Library/Keychains/login.keychain-db 2>&1 || true"
+ssh mac-h74 "security show-keychain-info /Users/game-netease/Desktop/ios_signing/build_reimport.keychain-db 2>&1 || true"
 ```
 
   - if it prints `User interaction is not allowed`, the signing inputs are not the root cause; the blocker is macOS keychain/private-key access from a non-interactive SSH session
+  - if the wrapper script was bypassed, restore the wrapper or run the same `unlock-keychain` plus `set-key-partition-list` sequence before retrying
   - confirm with a disposable framework copy:
 
 ```powershell
 ssh mac-h74 "rm -rf /tmp/codex_sign_probe.framework; cp -R /Users/game-netease/Desktop/messiah_official_nbs_dev/messiah/Engine/Sources/External/cclivesdk/ios/MLiveCCPlayer.framework /tmp/codex_sign_probe.framework; /usr/bin/codesign --force --verbose=4 --sign F6C9244F650A766DCC1D6D91941EE253D5586E7E --timestamp=none /tmp/codex_sign_probe.framework 2>&1 || true"
 ```
 
-  - if ad-hoc signing works but Apple Development/Distribution signing fails, do not keep changing bundle id/profile/project files; unlock or re-authorize the login keychain/private key in the macOS GUI session, or run `security unlock-keychain`/`security set-key-partition-list` only when the keychain password is explicitly available outside Codex
-  - if signing succeeds in the macOS GUI Terminal but still fails through SSH, the blocker is SSH session isolation from the GUI login keychain context; continue the build from GUI Terminal/Xcode, or create a dedicated build keychain for CI-style SSH signing instead of spending more time on project signing settings
+  - if ad-hoc signing works but Apple Development/Distribution signing fails, do not keep changing bundle id/profile/project files; first restore the dedicated keychain path and its unlock/partition-list preparation
+  - if signing succeeds only after re-importing the p12 into a fresh dedicated keychain, treat the previous keychain as broken and stop reusing it
 - code compile errors reappear
   - remote source became dirty again or build inputs changed
 

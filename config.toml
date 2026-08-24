@@ -1,4 +1,4 @@
-model_provider = "codexzh"
+model_provider = "newapi_official"
 
 # 下面两项是否生效取决于客户端版本；默认注释避免兼容性问题
 # network_access = "enabled"
@@ -48,6 +48,12 @@ name = "teamorouter"
 base_url = "https://api.teamorouter.com/v1"
 requires_openai_auth = true
 wire_api = "responses"
+
+[model_providers.newapi_official]
+name = "NewAPI"
+base_url = "http://127.0.0.1:3001/v1"
+wire_api = "responses"
+requires_openai_auth = true
 
 # =========================
 # Project Trust（按你现有保留）
@@ -124,6 +130,9 @@ trust_level = "trusted"
 [projects.'c:\users\zhangrjzrj']
 trust_level = "trusted"
 
+[projects.'f:\l46\l46_trunk']
+trust_level = "trusted"
+
 [notice]
 hide_full_access_warning = true
 
@@ -139,5 +148,4 @@ sandbox = "unelevated"
 "gpt-5.6-sol" = 4
 
 [features]
-codex_hooks = true
 hooks = true
