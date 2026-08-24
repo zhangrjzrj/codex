@@ -299,7 +299,15 @@ Documents/LocalData/Patch/Shaders/UI/UIMiniGifImage.fx
 Documents/LocalData/Patch/Shaders/YUVDecode.fx
 ```
 
-Pull representative files back and compare SHA-256 with the staged sources. After copying, call `MRender.RefreshShaderSource(callback)` through Telnet and require a successful callback, or terminate and relaunch the app before creating the NBS node. A successful decoder state without this shader gate does not prove visual correctness.
+Pull representative files back and compare SHA-256 with the staged sources.
+
+Do not treat file copy alone as shader override success. After copying, you must call `MRender.RefreshShaderSource(callback)` through Telnet and require a successful callback, or terminate and relaunch the app before creating the NBS node. The practical rule is:
+
+```text
+copy shader source -> refresh shader source -> replay NBS -> judge pixels
+```
+
+If `Patch/Shaders` contains the new file but the app has not completed `RefreshShaderSource`, the runtime can still render with the previously loaded shader state. A successful decoder state without this shader refresh gate does not prove visual correctness.
 
 ## 13. Play and verify NBS
 
