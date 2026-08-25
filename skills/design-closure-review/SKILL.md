@@ -1,6 +1,6 @@
 ---
 name: "design-closure-review"
-description: "Review a software, protocol, state-machine, knowledge-system, AI-agent design, or specification change for structural closure and logical minimality. Use when the user asks to find hidden ambiguity, check a changed spec against itself or related specs, reason from first principles, test abstraction boundaries, prevent state/version/combination explosion, remove redundant concepts, compare alternative models, or make a design precise enough for unambiguous coding."
+description: "Review a software, protocol, state-machine, knowledge-system, AI-agent design, or specification change for structural closure and logical minimality, and identify which changes require human review. Use when the user asks to find hidden ambiguity, check a changed spec against itself or related specs, extract human-review scope, classify semantic changes versus cross-section synchronization or wording cleanup, test abstraction boundaries, prevent state/version/combination explosion, or make a design precise enough for unambiguous coding."
 ---
 
 # Design Closure Review
@@ -77,6 +77,20 @@ After a proposed or applied change:
 4. Confirm that related specifications either remain compatible or are updated in the same change.
 5. Repeat the minimality test on the fix itself; reject a fix that closes one contradiction by adding a parallel source of truth or an unnecessary state.
 
+### 5. Extract the human review scope
+
+When the user asks what they need to review, classify changes by semantic effect rather than diff size, file count, or wording size. Trace each change back to the first authoritative rule that introduced it.
+
+1. **Must review:** A change adds, removes, or alters a requirement, entity, field, identity, state, invariant, decision condition, ownership boundary, source of truth, process branch, failure exit, validation rule, publication gate, security boundary, or externally observable behavior.
+2. **Sample review:** A previously confirmed logical change is synchronized into summaries, diagrams, detailed sections, hard rules, or related specifications without adding independent semantics. Group all such locations under the originating logical change instead of asking for line-by-line review.
+3. **Diff scan only:** Terminology, grammar, references, formatting, or residue cleanup changes that preserve every executable and semantic conclusion.
+4. **Uncertain:** A change whose semantic effect cannot be proven from the authoritative rule and affected rule graph. Escalate it to human review; never downgrade it merely because the textual edit is small.
+5. **Coverage proof:** For every logical change, list the authoritative definition and all synchronized sections, diagrams, hard rules, schemas, and related specifications. State explicitly when expected counterparts were not changed and why.
+
+Treat wording changes as logical changes when they alter identity or lifecycle implications. For example, replacing "published" with "built-in" is not cosmetic when it removes a Registry, release identity, or governance lifecycle.
+
+Do not create an author field, review state, approval object, or parallel checklist in the reviewed system. Human-review triage is a report about the change, not a new product workflow or source of truth.
+
 ## Reasoning Rules
 
 - Prefer one source of truth and derive projections mechanically.
@@ -126,4 +140,23 @@ Use numbered findings so the user can respond point by point. Lead with the high
 
 可直接落盘的硬规则：
 仅列已确认且无歧义的规则。
+```
+
+When human-review triage is requested, append or provide this focused view instead of repeating the full review:
+
+```text
+必须人工确认：
+1. 逻辑变化、权威定义、原因和影响。
+
+建议抽查的跨篇同步：
+1. 对应逻辑变化，以及同步到的章节、图、Schema 或硬规则。
+
+只需最后扫 Diff：
+纯术语、引用、格式或残留清理。
+
+存疑项：
+无法证明不改变语义的修改；没有则明确写“无”。
+
+覆盖证明：
+每项逻辑变化的权威定义及全部同步落点；指出遗漏或无需同步的理由。
 ```

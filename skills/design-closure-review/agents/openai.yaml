@@ -1,4 +1,4 @@
 interface:
   display_name: "Design Closure Review"
-  short_description: "检查设计与 Spec 的逻辑闭合、跨文档一致性和最简性"
-  default_prompt: "Use $design-closure-review to review this design or specification change for contradictions, cross-spec consistency, structural closure, and logical minimality."
+  short_description: "检查设计闭合性，并提取需要人工审核的修改"
+  default_prompt: "Use $design-closure-review to review this design or specification change for contradictions, cross-spec consistency, structural closure, logical minimality, and the changes that require human review."
