@@ -47,6 +47,14 @@ To restore without full permissions:
 powershell -ExecutionPolicy Bypass -File "$env:CODEX_HOME\skills\codex-reboot-restore\scripts\codex_reboot_restore.ps1" -Action restore -NoFullAccess
 ```
 
+To resume a session with a different provider or model while preserving its context:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "$env:CODEX_HOME\skills\codex-reboot-restore\scripts\codex_reboot_restore.ps1" -Action restore -ModelProvider duckcoding -Model gpt-5.6-sol
+```
+
+`resume` can retain the provider recorded in the session. Use `-ModelProvider` to pass an explicit `-c model_provider=...` override and `-Model` to pass an explicit model override. If the new window reports a read-only `.codex` database or access denied under `CodexSandboxUsers`, run the restore command from outside the sandbox with elevated execution approval; do not delete or rewrite the session database.
+
 To inspect without opening terminals:
 
 ```powershell
@@ -68,6 +76,7 @@ powershell -ExecutionPolicy Bypass -File "$env:CODEX_HOME\skills\codex-reboot-re
 - Restore exact sessions by default.
 - Restore candidate sessions only when the script is run with `-IncludeCandidates`.
 - Restore sessions with `--dangerously-bypass-approvals-and-sandbox` by default; pass `-NoFullAccess` to disable this.
+- Preserve session context while allowing explicit provider/model overrides through `-ModelProvider` and `-Model`.
 - Launch with Windows Terminal (`wt`) when available and pass `new-tab --title`; otherwise fall back to `Start-Process powershell` and set `$host.UI.RawUI.WindowTitle`.
 
 ## Safety

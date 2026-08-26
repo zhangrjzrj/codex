@@ -14,6 +14,10 @@ param(
 
     [switch]$NoFullAccess,
 
+    [string]$ModelProvider = "",
+
+    [string]$Model = "",
+
     [switch]$DryRun
 )
 
@@ -381,6 +385,8 @@ function Start-CodexSession {
         [string]$Title,
         [bool]$UseWindowsTerminal,
         [bool]$FullAccess,
+        [string]$ModelProvider,
+        [string]$Model,
         [bool]$DryRun
     )
     $cdPart = ""
@@ -388,7 +394,9 @@ function Start-CodexSession {
         $cdPart = "-C " + (Quote-Arg $Cwd) + " "
     }
     $accessPart = if ($FullAccess) { "--dangerously-bypass-approvals-and-sandbox " } else { "" }
-    $cmd = "$CodexCommand $accessPart$cdPart" + "resume $SessionId"
+    $providerPart = if ($ModelProvider) { "-c " + (Quote-Arg ("model_provider=" + $ModelProvider)) + " " } else { "" }
+    $modelPart = if ($Model) { "-m " + (Quote-Arg $Model) + " " } else { "" }
+    $cmd = "$CodexCommand $accessPart$cdPart" + "resume $SessionId $providerPart$modelPart"
 
     if ($UseWindowsTerminal) {
         $args = @("new-tab")
@@ -419,6 +427,8 @@ function Restore-Snapshot {
         [bool]$IncludeCandidateSessions,
         [bool]$NoWt,
         [bool]$FullAccess,
+        [string]$ModelProvider,
+        [string]$Model,
         [bool]$DryRun
     )
     $useWt = (-not $NoWt) -and [bool](Get-Command wt -ErrorAction SilentlyContinue)
@@ -431,7 +441,7 @@ function Restore-Snapshot {
         $title = if ($s.PSObject.Properties.Name -contains "title") { [string]$s.title } else { "" }
         $titleLabel = if ($title) { " title=$title" } else { "" }
         Write-Host "Opening $($s.kind) [$accessLabel]: $($s.id) $($s.cwd)$titleLabel"
-        Start-CodexSession -CodexCommand $CodexCommand -SessionId $s.id -Cwd $s.cwd -Title $title -UseWindowsTerminal $useWt -FullAccess $FullAccess -DryRun $DryRun
+        Start-CodexSession -CodexCommand $CodexCommand -SessionId $s.id -Cwd $s.cwd -Title $title -UseWindowsTerminal $useWt -FullAccess $FullAccess -ModelProvider $ModelProvider -Model $Model -DryRun $DryRun
         Start-Sleep -Milliseconds 200
     }
 
@@ -454,6 +464,6 @@ switch ($Action) {
         Show-Snapshot -Snapshot (Load-Snapshot $SnapshotPath)
     }
     "restore" {
-        Restore-Snapshot -Snapshot (Load-Snapshot $SnapshotPath) -CodexCommand $CodexCommand -IncludeCandidateSessions ([bool]$IncludeCandidates) -NoWt ([bool]$NoWindowsTerminal) -FullAccess (-not [bool]$NoFullAccess) -DryRun ([bool]$DryRun)
+        Restore-Snapshot -Snapshot (Load-Snapshot $SnapshotPath) -CodexCommand $CodexCommand -IncludeCandidateSessions ([bool]$IncludeCandidates) -NoWt ([bool]$NoWindowsTerminal) -FullAccess (-not [bool]$NoFullAccess) -ModelProvider $ModelProvider -Model $Model -DryRun ([bool]$DryRun)
     }
 }
