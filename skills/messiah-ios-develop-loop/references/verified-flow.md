@@ -62,6 +62,15 @@ MpkCooked/Resources.mpkinfo
 
 Copy them from the known-good sample only when source generation does not produce them. Record SHA-256 for source and destination so the copied package remains auditable.
 
+Do not stop at the worktree root. Before install, confirm the built app also contains:
+
+```text
+Engine/Binaries/IOS/Hybrid-iphoneos/Game.app/Resources.mpk
+Engine/Binaries/IOS/Hybrid-iphoneos/Game.app/Resources.mpkinfo
+```
+
+If the app reaches a persistent black screen while Python and shader logs continue, treat missing in-app MPK files as the first packaging suspect.
+
 ## 5. Generate the iOS project
 
 Generate with the verified bundle identifier:
@@ -79,6 +88,14 @@ python3 BuildMessiah.py ios \
 ```
 
 Save generation output to `.j-evidence/generate_ios.log`. Confirm the generated project contains `PRODUCT_BUNDLE_IDENTIFIER = com.netease.technicalcenter`.
+
+If startup logs show `_apple_support`, `init_apple_streams`, or `ModuleNotFoundError`, verify the iOS Python host sets home from `builtin_home` in `Engine/Sources/Runtime/Plugins/Python/Source/MPython.cpp`. The expected resolved root is:
+
+```text
+Package/Script/Python/Lib314
+```
+
+Do not leave the host at `Package/Script/Python`; that path is too shallow for Python 3.14 startup on this line.
 
 ## 6. Provision an SSH-capable signing keychain
 

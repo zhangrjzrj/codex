@@ -20,18 +20,19 @@ Require evidence for every completed gate:
 
 ```text
 target commit
-→ isolated worktree
-→ real LFS libraries
-→ Resources.mpk
-→ GenerateIOS
-→ signed Hybrid build
-→ strict signature verification
-→ device install registration
-→ device launch
-→ iproxy/Telnet welcome
-→ full shader roots copied, verified, and refreshed
-→ NBS asset copied and verified
-→ NBS ready or proven native crash
+-> isolated worktree
+-> real LFS libraries
+-> Resources.mpk
+-> Python home points to Lib314
+-> GenerateIOS
+-> signed Hybrid build
+-> strict signature verification
+-> device install registration
+-> device launch
+-> iproxy/Telnet welcome
+-> full shader roots copied, verified, and refreshed
+-> NBS asset copied and verified
+-> NBS ready or proven native crash
 ```
 
 Do not report success from `BUILD SUCCEEDED` alone. The pass signal is runtime NBS state:
@@ -55,11 +56,14 @@ If playback produces a native crash report, report the closed loop as blocked at
 6. Run long builds in the remote background with a PID and log; poll process and log progress.
 7. Use the exact `Game.app` path reported by the build log; do not guess DerivedData paths.
 8. Query the installed app immediately after `devicectl install`; retrying launch without proving registration hides the real failure.
-9. Do not accept MPK-bundled shaders as the NBS visual baseline. Overlay both `Engine/EngineShaders` and `Engine/Shaders` into `Documents/LocalData/Patch/Shaders`, clear stale shader caches, and prove refresh or reload before playback.
-10. Copy the exact NBS asset into the app data container and verify the device-side size or hash before playback.
-11. Treat Telnet forwarding as a separate gate from app launch.
-12. For new `switchToFile`-based NBS playback, use a Messiah-mounted path such as `LocalData/Videos/<file>.nbs`; historical `Videos/<file>.nbs` applies to the older direct-create route.
-13. Preserve crash logs and compare old/new library versions with the same app, shader patch, NBS file, device, and playback command.
+9. If iOS startup shows `_apple_support`, `init_apple_streams`, or `ModuleNotFoundError`, verify `Engine/Sources/Runtime/Plugins/Python/Source/MPython.cpp` sets Python home from `builtin_home`, not `builtin_script`; the runtime standard library must resolve to `Package/Script/Python/Lib314`.
+10. Before install, verify `Game.app` physically contains `Resources.mpk` and `Resources.mpkinfo`. A live process with a black screen is not a valid substitute for this gate.
+10.1 The source MPK gate is the active worktree `MpkCooked/Resources.mpk` and `MpkCooked/Resources.mpkinfo`; do not substitute `Package` or any other path when preparing the iOS bundle.
+11. Do not accept MPK-bundled shaders as the NBS visual baseline. Overlay both `Engine/EngineShaders` and `Engine/Shaders` into `Documents/LocalData/Patch/Shaders`, clear stale shader caches, and prove refresh or reload before playback.
+12. Copy the exact NBS asset into the app data container and verify the device-side size or hash before playback.
+13. Treat Telnet forwarding as a separate gate from app launch.
+14. For new `switchToFile`-based NBS playback, use a Messiah-mounted path such as `LocalData/Videos/<file>.nbs`; historical `Videos/<file>.nbs` applies to the older direct-create route.
+15. Preserve crash logs and compare old/new library versions with the same app, shader patch, NBS file, device, and playback command.
 
 ## Stop conditions
 
