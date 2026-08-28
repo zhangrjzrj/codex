@@ -246,7 +246,7 @@ Pull the file or its parent directory back with `devicectl device copy from`. Co
 
 For the historical direct-create route, stage the same file under `Documents/Videos/horror.nbs` instead.
 
-## 11. Launch and forward Telnet
+## 11. Launch and verify Telnet
 
 The device must be unlocked:
 
@@ -256,7 +256,17 @@ xcrun devicectl device process launch \
   com.netease.technicalcenter
 ```
 
-Keep USB forwarding alive in the background:
+If the source has no reliable iOS listener, first follow [cpp-telnet.md](cpp-telnet.md) and pass its patch applicability gate before building.
+
+After launch, discover the current CoreDevice tunnel IPv6 address and connect directly to device port `9113`. The verified run used:
+
+```text
+[fd37:3299:ca8::1]:9113
+```
+
+Treat that address as evidence from one device session, not a permanent identifier.
+
+USB forwarding remains an optional compatibility route:
 
 ```bash
 /opt/homebrew/Cellar/libusbmuxd/2.1.1/bin/iproxy \
@@ -264,7 +274,14 @@ Keep USB forwarding alive in the background:
   -u 00008110-001A5C1226B8401E
 ```
 
-Telnet must return `Welcome to messiah server` from `127.0.0.1:19113`.
+Telnet must return `Welcome to messiah server`. Then send a unique text marker and require the same marker in the response. Record:
+
+```text
+HANDSHAKE_OK=True
+RX_OK=True
+```
+
+If Homebrew `iproxy` reports `libusbmuxd error opening socket`, stop retrying that route and use CoreDevice IPv6 direct access.
 
 ## 12. Replace MPK shaders with the complete source roots
 

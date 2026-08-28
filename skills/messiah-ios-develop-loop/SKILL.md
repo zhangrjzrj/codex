@@ -1,6 +1,6 @@
 ---
 name: "messiah-ios-develop-loop"
-description: "Close the complete Messiah public develop iOS loop on a remote Mac: locate an integrated commit, create an isolated worktree, pull required Git LFS artifacts, prepare Resources.mpk, generate the Xcode project, build with an SSH-capable signing keychain, verify and install Game.app, inject and verify the complete runtime shader patch plus NBS asset, launch it, establish iproxy, control it through Telnet, verify NBS playback and visual correctness, and collect crash evidence. Use when Codex needs to reproduce or validate a Messiah develop iOS version end to end rather than only compile or sign it."
+description: "Close the complete Messiah public develop iOS loop on a remote Mac: locate an integrated commit, create an isolated worktree, pull required Git LFS artifacts, prepare Resources.mpk, generate the Xcode project, build with an SSH-capable signing keychain, verify and install Game.app, inject and verify the complete runtime shader patch plus NBS asset, launch it, connect through CoreDevice IPv6 or iproxy, control it through Telnet, verify NBS playback and visual correctness, and collect crash evidence. Use when Codex needs to reproduce or validate a Messiah develop iOS version end to end rather than only compile or sign it."
 ---
 
 # Messiah iOS Develop Loop
@@ -13,6 +13,8 @@ Use this skill as the top-level iOS workflow. Route focused operations to:
 - `messiah-feedback-loop` for evidence-gated iteration.
 
 Read [references/verified-flow.md](references/verified-flow.md) before executing the workflow.
+
+When the target lacks a reliable iOS listener on port `9113`, read [references/cpp-telnet.md](references/cpp-telnet.md). It owns the archived public-baseline patch, applicability gate, implementation invariants, and bidirectional acceptance contract.
 
 ## Success contract
 
@@ -29,7 +31,9 @@ target commit
 -> strict signature verification
 -> device install registration
 -> device launch
--> iproxy/Telnet welcome
+-> C++ Telnet patch applicability when needed
+-> CoreDevice IPv6 or iproxy/Telnet welcome
+-> Telnet bidirectional text echo
 -> full shader roots copied, verified, and refreshed
 -> NBS asset copied and verified
 -> NBS ready or proven native crash
@@ -62,6 +66,8 @@ If playback produces a native crash report, report the closed loop as blocked at
 11. Do not accept MPK-bundled shaders as the NBS visual baseline. Overlay both `Engine/EngineShaders` and `Engine/Shaders` into `Documents/LocalData/Patch/Shaders`, clear stale shader caches, and prove refresh or reload before playback.
 12. Copy the exact NBS asset into the app data container and verify the device-side size or hash before playback.
 13. Treat Telnet forwarding as a separate gate from app launch.
+13.1 Prefer the current CoreDevice IPv6 tunnel address for direct device port `9113` access. `iproxy` is a compatibility route, not a required implementation.
+13.2 Do not accept a listening socket or welcome banner alone. Send a unique text marker and require the same marker in the response.
 14. For new `switchToFile`-based NBS playback, use a Messiah-mounted path such as `LocalData/Videos/<file>.nbs`; historical `Videos/<file>.nbs` applies to the older direct-create route.
 15. Preserve crash logs and compare old/new library versions with the same app, shader patch, NBS file, device, and playback command.
 

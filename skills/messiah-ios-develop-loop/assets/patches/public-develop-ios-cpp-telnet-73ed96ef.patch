@@ -1,0 +1,197 @@
+diff --git a/Engine/Sources/Runtime/Plugins/Asyncore/Sources/AsyncoreModule.cpp b/Engine/Sources/Runtime/Plugins/Asyncore/Sources/AsyncoreModule.cpp
+--- a/Engine/Sources/Runtime/Plugins/Asyncore/Sources/AsyncoreModule.cpp
++++ b/Engine/Sources/Runtime/Plugins/Asyncore/Sources/AsyncoreModule.cpp
+@@ -2176,6 +2176,10 @@ namespace Messiah
+ 			async::logic::async_set_external_python_caller(CallScript);
+ 			async::logic::async_set_thread_num(2);
+ 			async::logic::async_start();
++			if (async::logic::async_start_telnet_server("::", 9113))
++				DLOG(INFO) << "[JTelnet] C++ server started on 9113";
++			else
++				DLOG(ERROR) << "[JTelnet] C++ server failed on 9113";
+ 			// tickable.
+ 			GObjectDispatcher->_AddTickable_on_ot(GAsyncoreModule);
+ 		}
+diff --git a/Engine/Sources/Runtime/Plugins/Asyncore/Sources/asiocore/asyncore.cpp b/Engine/Sources/Runtime/Plugins/Asyncore/Sources/asiocore/asyncore.cpp
+--- a/Engine/Sources/Runtime/Plugins/Asyncore/Sources/asiocore/asyncore.cpp
++++ b/Engine/Sources/Runtime/Plugins/Asyncore/Sources/asiocore/asyncore.cpp
+@@ -113,8 +113,36 @@ namespace logic
+ 
+ using namespace common;
+ 
++static net::telnet_server_ptr GTelnetServer;
++static bool GAsyncRuntimeStarted = false;
++
++bool async_start_telnet_server(const char* ip, unsigned short port)
++{
++	if (GTelnetServer)
++		return true;
++	GTelnetServer = boost::make_shared<net::telnet_server>();
++	if (!GTelnetServer->bind(ip, port))
++	{
++		GTelnetServer.reset();
++		return false;
++	}
++	GTelnetServer->listen_immediate(8);
++	return true;
++}
++
++void async_stop_telnet_server()
++{
++	if (!GTelnetServer)
++		return;
++	GTelnetServer->stop();
++	GTelnetServer.reset();
++}
++
+ void async_start()
+ {
++	if (GAsyncRuntimeStarted)
++		return;
++	GAsyncRuntimeStarted = true;
+ 	DLOG(INFO) << __FUNCTION__  << " start async... ";
+ 
+ 	std::string mname = IO_MANAGER.thread_name("main");
+@@ -148,6 +176,8 @@ bool async_poll()
+ void async_stop()
+ {
+ 	DLOG(INFO) << __FUNCTION__  << " stop async... ";
++	GAsyncRuntimeStarted = false;
++	async_stop_telnet_server();
+ 	CONNECTION_MANAGER.stop();
+ 	TIMER_MANAGER.stop();
+ 	AREA_MANAGER.stop();
+diff --git a/Engine/Sources/Runtime/Plugins/Asyncore/Sources/asiocore/asyncore.hpp b/Engine/Sources/Runtime/Plugins/Asyncore/Sources/asiocore/asyncore.hpp
+--- a/Engine/Sources/Runtime/Plugins/Asyncore/Sources/asiocore/asyncore.hpp
++++ b/Engine/Sources/Runtime/Plugins/Asyncore/Sources/asiocore/asyncore.hpp
+@@ -18,6 +18,10 @@ bool async_poll();
+ 
+ void async_stop();
+ 
++bool async_start_telnet_server(const char* ip, unsigned short port);
++
++void async_stop_telnet_server();
++
+ void async_init();
+ 
+ void async_set_thread_num(std::size_t num);
+diff --git a/Engine/Sources/Runtime/Plugins/Asyncore/Sources/libs/net/tcp_server.cpp b/Engine/Sources/Runtime/Plugins/Asyncore/Sources/libs/net/tcp_server.cpp
+--- a/Engine/Sources/Runtime/Plugins/Asyncore/Sources/libs/net/tcp_server.cpp
++++ b/Engine/Sources/Runtime/Plugins/Asyncore/Sources/libs/net/tcp_server.cpp
+@@ -113,6 +113,14 @@ void tcp_server::listen(std::size_t backlog)
+ 	tcp_server::start();
+ }
+ 
++void tcp_server::listen_immediate(std::size_t backlog)
++{
++	backlog_ = backlog;
++	reset_connection();
++	server::start();
++	handle_start_server();
++}
++
+ void tcp_server::reset_connection()
+ {
+ 	DLOG(INFO) << __FUNCTION__ << " " << host_ <<  " :  " << port_;
+diff --git a/Engine/Sources/Runtime/Plugins/Asyncore/Sources/libs/net/tcp_server.hpp b/Engine/Sources/Runtime/Plugins/Asyncore/Sources/libs/net/tcp_server.hpp
+--- a/Engine/Sources/Runtime/Plugins/Asyncore/Sources/libs/net/tcp_server.hpp
++++ b/Engine/Sources/Runtime/Plugins/Asyncore/Sources/libs/net/tcp_server.hpp
+@@ -20,6 +20,7 @@ public:
+ 
+ 	bool bind(const std::string &ip, unsigned short port);
+ 	void listen(std::size_t backlog);
++	void listen_immediate(std::size_t backlog);
+ 
+ 	inline void set_reuse_addr(bool reuse) { reuse_addr_ = reuse; }
+ 
+diff --git a/Engine/Sources/Runtime/Plugins/Asyncore/Sources/libs/net/telnet_connection.cpp b/Engine/Sources/Runtime/Plugins/Asyncore/Sources/libs/net/telnet_connection.cpp
+--- a/Engine/Sources/Runtime/Plugins/Asyncore/Sources/libs/net/telnet_connection.cpp
++++ b/Engine/Sources/Runtime/Plugins/Asyncore/Sources/libs/net/telnet_connection.cpp
+@@ -118,12 +118,8 @@ void telnet_connection::cleanup()
+ 		__cleanup();
+ 	}
+ #else
+-	EXTERNAL_CALL((
+-		[ptr=shared_from_this()]()
+-		{
+-			static_cast<telnet_connection*>(ptr.get())->__cleanup();
+-		}
+-		));
++	common::aquire_py_GIL gil;
++	__cleanup();
+ #endif
+ 	if (master_)
+ 	{
+@@ -819,12 +815,19 @@ void telnet_connection::handle_connected_read(
+ 				script_run_script_(shared_from_this(), task);
+ 			else __handle_connected_read(task);
+ 	#else
+-			EXTERNAL_CALL((
+-				[=, this, ptr=shared_from_this()]()
+-				{
+-					static_cast<telnet_connection*>(ptr.get())->__handle_connected_read(task);
+-				}
+-				));
++			if (task->cmd == TELNET_CMD_TEXT)
++			{
++				__handle_connected_read(task);
++			}
++			else
++			{
++				EXTERNAL_CALL((
++					[=, this, ptr=shared_from_this()]()
++					{
++						static_cast<telnet_connection*>(ptr.get())->__handle_connected_read(task);
++					}
++					));
++			}
+ 	#endif
+ 			task = parser_.parse();
+ 		}
+diff --git a/Engine/Sources/Runtime/Plugins/Python/Source/MPython.cpp b/Engine/Sources/Runtime/Plugins/Python/Source/MPython.cpp
+--- a/Engine/Sources/Runtime/Plugins/Python/Source/MPython.cpp
++++ b/Engine/Sources/Runtime/Plugins/Python/Source/MPython.cpp
+@@ -42,6 +42,13 @@
+ */
+ #include "marshal.h"
+ 
++namespace async::logic
++{
++	void async_set_thread_num(std::size_t num);
++	void async_start();
++	bool async_start_telnet_server(const char* ip, unsigned short port);
++}
++
+ #if WITH_COCOSUI
+ #include "CocosUIHandler.h"
+ #include "CocosPython/manual/pycocos_script_engine.h"
+@@ -1295,7 +1302,7 @@ namespace Messiah
+ 	#endif
+ 		String builtin_home = builtin_script + GPythonLibDirectory;
+ 	#ifdef USE_PYTHON3
+-		WString path = cvt_wstring(builtin_script);
++		WString path = cvt_wstring(builtin_home);
+ 	#if PY_VERSIION_DECIMAL >= 315
+ 		config.home = path.c_str();
+ 	#else
+@@ -1308,7 +1315,7 @@ namespace Messiah
+ 		#endif
+ 	#endif
+ 	#else
+-		String path = cvt_encoding(builtin_script);
++		String path = cvt_encoding(builtin_home);
+ 		Py_SetPythonHome(const_cast<char*>(*path));
+ 	#endif
+ 
+@@ -1622,5 +1629,11 @@ namespace Messiah
+ 		InitEncrypt(builtin_script, encrypt_script, patch_script, builtin_home);
+ 	#endif
++		async::logic::async_set_thread_num(2);
++		if (async::logic::async_start_telnet_server("::", 9113))
++			LOG(Python, Info) << "[JTelnet] C++ server started on 9113"sv;
++		else
++			LOG(Python, Error) << "[JTelnet] C++ server failed on 9113"sv;
++		async::logic::async_start();
+ 
+ 	#ifdef USE_PYTHON3
+ 		Asyncore::scoped_borrowed_object ochecker(MODULE_INIT_CALL(MChecker));
