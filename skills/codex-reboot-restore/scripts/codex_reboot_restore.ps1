@@ -18,6 +18,8 @@ param(
 
     [string]$Model = "",
 
+    [switch]$NoColorRestore,
+
     [switch]$DryRun
 )
 
@@ -28,6 +30,19 @@ function Get-CodexHome {
         return $env:CODEX_HOME
     }
     return (Join-Path $HOME ".codex")
+}
+
+function Resolve-WindowsTerminal {
+    $cmd = Get-Command wt.exe -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    $candidates = @(
+        (Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps\wt.exe'),
+        (Join-Path $env:ProgramFiles 'WindowsApps\Microsoft.WindowsTerminal_8wekyb3d8bbwe\wt.exe')
+    )
+    foreach ($path in $candidates) {
+        if ($path -and (Test-Path -LiteralPath $path)) { return $path }
+    }
+    return $null
 }
 
 function Convert-WmiTime {
@@ -387,6 +402,7 @@ function Start-CodexSession {
         [bool]$FullAccess,
         [string]$ModelProvider,
         [string]$Model,
+        [bool]$RestoreColor,
         [bool]$DryRun
     )
     $cdPart = ""
@@ -396,7 +412,13 @@ function Start-CodexSession {
     $accessPart = if ($FullAccess) { "--dangerously-bypass-approvals-and-sandbox " } else { "" }
     $providerPart = if ($ModelProvider) { "-c " + (Quote-Arg ("model_provider=" + $ModelProvider)) + " " } else { "" }
     $modelPart = if ($Model) { "-m " + (Quote-Arg $Model) + " " } else { "" }
-    $cmd = "$CodexCommand $accessPart$cdPart" + "resume $SessionId $providerPart$modelPart"
+    $colorPart = if ($RestoreColor) {
+        '[Environment]::SetEnvironmentVariable(''NO_COLOR'', $null, ''Process''); $env:TERM = ''xterm-256color''; $env:COLORTERM = ''truecolor''; '
+    }
+    else {
+        ""
+    }
+    $cmd = $colorPart + "$CodexCommand $accessPart$cdPart" + "resume $SessionId $providerPart$modelPart"
 
     if ($UseWindowsTerminal) {
         $args = @("new-tab")
@@ -408,7 +430,9 @@ function Start-CodexSession {
             Write-Host ("DRY-RUN wt {0}" -f (($args | ForEach-Object { Quote-Arg $_ }) -join " "))
             return
         }
-        Start-Process wt -ArgumentList $args | Out-Null
+        $wtPath = Resolve-WindowsTerminal
+        if (-not $wtPath) { throw 'Windows Terminal (wt.exe) not found' }
+        & $wtPath @args | Out-Null
     }
     else {
         $titlePart = if ($Title) { '$host.UI.RawUI.WindowTitle = ' + (Quote-Arg $Title) + '; ' } else { "" }
@@ -429,6 +453,7 @@ function Restore-Snapshot {
         [bool]$FullAccess,
         [string]$ModelProvider,
         [string]$Model,
+        [bool]$RestoreColor,
         [bool]$DryRun
     )
     $useWt = (-not $NoWt) -and [bool](Get-Command wt -ErrorAction SilentlyContinue)
@@ -441,7 +466,7 @@ function Restore-Snapshot {
         $title = if ($s.PSObject.Properties.Name -contains "title") { [string]$s.title } else { "" }
         $titleLabel = if ($title) { " title=$title" } else { "" }
         Write-Host "Opening $($s.kind) [$accessLabel]: $($s.id) $($s.cwd)$titleLabel"
-        Start-CodexSession -CodexCommand $CodexCommand -SessionId $s.id -Cwd $s.cwd -Title $title -UseWindowsTerminal $useWt -FullAccess $FullAccess -ModelProvider $ModelProvider -Model $Model -DryRun $DryRun
+        Start-CodexSession -CodexCommand $CodexCommand -SessionId $s.id -Cwd $s.cwd -Title $title -UseWindowsTerminal $useWt -FullAccess $FullAccess -ModelProvider $ModelProvider -Model $Model -RestoreColor $RestoreColor -DryRun $DryRun
         Start-Sleep -Milliseconds 200
     }
 
@@ -464,6 +489,6 @@ switch ($Action) {
         Show-Snapshot -Snapshot (Load-Snapshot $SnapshotPath)
     }
     "restore" {
-        Restore-Snapshot -Snapshot (Load-Snapshot $SnapshotPath) -CodexCommand $CodexCommand -IncludeCandidateSessions ([bool]$IncludeCandidates) -NoWt ([bool]$NoWindowsTerminal) -FullAccess (-not [bool]$NoFullAccess) -ModelProvider $ModelProvider -Model $Model -DryRun ([bool]$DryRun)
+        Restore-Snapshot -Snapshot (Load-Snapshot $SnapshotPath) -CodexCommand $CodexCommand -IncludeCandidateSessions ([bool]$IncludeCandidates) -NoWt ([bool]$NoWindowsTerminal) -FullAccess (-not [bool]$NoFullAccess) -ModelProvider $ModelProvider -Model $Model -RestoreColor (-not [bool]$NoColorRestore) -DryRun ([bool]$DryRun)
     }
 }
