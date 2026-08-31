@@ -1,0 +1,4 @@
+interface:
+  display_name: "NewBasis WASM 浏览器闭环"
+  short_description: "构建并验收 NewBasis libnbs_c H5 WASM"
+  default_prompt: "运行 NewBasis libnbs_c WASM 构建、发布和浏览器验收闭环"
