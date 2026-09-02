@@ -71,6 +71,10 @@ Engine/Binaries/IOS/Hybrid-iphoneos/Game.app/Resources.mpkinfo
 
 If the app reaches a persistent black screen while Python and shader logs continue, treat missing in-app MPK files as the first packaging suspect.
 
+Before generation or build, validate every numeric `Begin`, `Size`, and `Flag` value in XML `Resources.mpkinfo` fits the runtime `uint32` parser (`0..4294967295`). XML well-formedness and matching source/app hashes are insufficient. A larger value causes startup to abort with `boost::property_tree::ptree_bad_data` and an ABI type name such as `"j"`.
+
+For this sample line, the known-good audit snapshot is `/Users/game-netease/Desktop/messiah_official/messiah/MpkCooked`: approximately `118 MB` for `Resources.mpk` and `14 KB` for `Resources.mpkinfo`. Treat multi-gigabyte MPK output or a multi-megabyte XML info file as a packaging gate failure until its 32-bit offsets are proven valid.
+
 ## 5. Generate the iOS project
 
 Generate with the verified bundle identifier:
@@ -199,6 +203,16 @@ application-identifier=S3NPTV6S84.com.netease.technicalcenter
 
 Verify every embedded framework as well.
 
+If `Resources.mpk` or `Resources.mpkinfo` is replaced inside an already signed `Game.app`, the main app signature becomes invalid. Extract the `Entitlements` dictionary from `Game.app/embedded.mobileprovision`, re-sign the app with that explicit entitlements plist, and verify the signed app still contains:
+
+```text
+application-identifier=S3NPTV6S84.com.netease.technicalcenter
+com.apple.developer.team-identifier=S3NPTV6S84
+get-task-allow=true
+```
+
+Do not re-sign only with an identity and `--deep`. That can produce a signature that verifies locally while dropping `application-identifier`; device installation then fails with `MIInstallerErrorDomain error 63`.
+
 ## 9. Install and prove registration
 
 ```bash
@@ -281,6 +295,15 @@ HANDSHAKE_OK=True
 RX_OK=True
 ```
 
+Welcome and echo do not prove Python execution. Execute a one-line command that writes a unique marker under `Documents`, pull it back through `devicectl`, then close the connection and require the App PID to remain alive. Record:
+
+```text
+PYTHON_MARKER_OK=True
+DISCONNECT_SURVIVAL_OK=True
+```
+
+Always test the current CoreDevice IPv6 route before diagnosing Telnet source. A stale long-running `iproxy` process can accept local TCP while failing to carry a usable command session.
+
 If Homebrew `iproxy` reports `libusbmuxd error opening socket`, stop retrying that route and use CoreDevice IPv6 direct access.
 
 ## 12. Replace MPK shaders with the complete source roots
@@ -335,7 +358,7 @@ Documents/LocalData/Patch/Shaders/YUVDecode.fx
 
 Pull representative files back and compare SHA-256 with the staged sources.
 
-Do not treat file copy alone as shader override success. After copying, you must call `MRender.RefreshShaderSource(callback)` through Telnet and require a successful callback, or terminate and relaunch the app before creating the NBS node. The practical rule is:
+Do not treat file copy alone as shader override success. After copying, call `MRender.RefreshShaderSource(callback)` through Telnet and require a successful callback before creating the NBS node. Relaunch alone is insufficient when the visual gate is intended to prove the copied sources. The practical rule is:
 
 ```text
 copy shader source -> refresh shader source -> replay NBS -> judge pixels

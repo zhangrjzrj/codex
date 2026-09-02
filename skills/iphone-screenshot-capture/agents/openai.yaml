@@ -1,0 +1,4 @@
+interface:
+  display_name: "iPhone Screenshot Capture"
+  short_description: "Capture iPhone screenshots through a remote Mac"
+  default_prompt: "Capture a screenshot from the connected iPhone and return the local evidence path."

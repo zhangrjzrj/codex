@@ -30,6 +30,7 @@ The implementation invariants are:
 4. `TELNET_CMD_TEXT` runs directly in the connection path so greeting and echo do not wait for the external Python queue. Other commands retain that queue.
 5. Python home points to `Package/Script/Python/Lib314` through `builtin_home`.
 6. Duplicate startup entry points are safe because both async runtime and Telnet server startup are idempotent.
+7. Connection cleanup that decrements Python-owned `locals_` must run through the external Python caller. Do not acquire the GIL and call `__cleanup()` directly from the Asyncore IO thread; Python locals can own Cocos wrappers whose destructors require the engine thread.
 
 ## Applicability gate
 
@@ -65,16 +66,24 @@ After the ordinary signed Hybrid build, installation, registration, and launch g
 1. Discover the current CoreDevice tunnel address; do not assume the archived IPv6 address is stable.
 2. Connect directly to `[device-ipv6]:9113` first.
 3. Require `Welcome to messiah server`.
-4. Send a unique text marker.
-5. Require the same marker in the response.
+4. Send a unique text marker and require the same marker in the response.
+5. Execute a one-line Python command that writes a unique file under `Documents`.
+6. Pull the file through `devicectl` and verify its exact content.
+7. Close the Telnet client and require the App PID to remain alive.
 
 The Telnet gate passes only when both are true:
 
 ```text
 HANDSHAKE_OK=True
 RX_OK=True
+PYTHON_MARKER_OK=True
+DISCONNECT_SURVIVAL_OK=True
 ```
 
-`BUILD SUCCEEDED`, an installed app, a running process, or an open TCP socket alone is not Telnet success.
+`BUILD SUCCEEDED`, an installed app, a running process, an open TCP socket, welcome text, or plain echo alone is not Telnet command success.
+
+If command execution works only over the current CoreDevice IPv6 address while a long-running `iproxy` accepts TCP but produces no marker, treat the forwarding process as stale. Do not change Telnet code until the same command has been tested directly against the current tunnel IPv6 address.
+
+If closing a successful command connection produces `SIGTRAP` with `telnet_connection::__cleanup()` and a Python wrapper destructor in the faulting stack, restore external-caller cleanup scheduling and rebuild. Do not hide the assertion or keep the client connection open as a workaround.
 
 Homebrew `iproxy` is an optional compatibility route. If it reports `libusbmuxd error opening socket`, use CoreDevice IPv6 direct access rather than retrying the same forwarding path.

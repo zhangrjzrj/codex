@@ -34,6 +34,7 @@ target commit
 -> C++ Telnet patch applicability when needed
 -> CoreDevice IPv6 or iproxy/Telnet welcome
 -> Telnet bidirectional text echo
+-> Telnet Python command marker and disconnect survival
 -> full shader roots copied, verified, and refreshed
 -> NBS asset copied and verified
 -> NBS ready or proven native crash
@@ -68,6 +69,7 @@ If playback produces a native crash report, report the closed loop as blocked at
 13. Treat Telnet forwarding as a separate gate from app launch.
 13.1 Prefer the current CoreDevice IPv6 tunnel address for direct device port `9113` access. `iproxy` is a compatibility route, not a required implementation.
 13.2 Do not accept a listening socket or welcome banner alone. Send a unique text marker and require the same marker in the response.
+13.3 Echo proves only that text parsing works. Execute a Python command that writes a unique app-container marker, pull the marker back, close the client connection, and require the App PID to remain alive.
 14. For new `switchToFile`-based NBS playback, use a Messiah-mounted path such as `LocalData/Videos/<file>.nbs`; historical `Videos/<file>.nbs` applies to the older direct-create route.
 15. Preserve crash logs and compare old/new library versions with the same app, shader patch, NBS file, device, and playback command.
 
