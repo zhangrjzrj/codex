@@ -49,6 +49,8 @@ To preserve the inherited color environment instead:
 powershell -ExecutionPolicy Bypass -File "$env:CODEX_HOME\skills\codex-reboot-restore\scripts\codex_reboot_restore.ps1" -Action restore -NoColorRestore
 ```
 
+When `-ModelProvider` is omitted, restore reads the top-level `model_provider` from the active `$CODEX_HOME\config.toml` and passes it explicitly to each `codex resume` command. Pass `-ModelProvider` only for an intentional override.
+
 To restore without full permissions:
 
 ```powershell
@@ -84,7 +86,7 @@ powershell -ExecutionPolicy Bypass -File "$env:CODEX_HOME\skills\codex-reboot-re
 - Restore exact sessions by default.
 - Restore candidate sessions only when the script is run with `-IncludeCandidates`.
 - Restore sessions with `--dangerously-bypass-approvals-and-sandbox` by default; pass `-NoFullAccess` to disable this.
-- Preserve session context while allowing explicit provider/model overrides through `-ModelProvider` and `-Model`.
+- Preserve session context while reading the active config provider by default; allow explicit provider/model overrides through `-ModelProvider` and `-Model`.
 - Restore TUI color highlighting by default through process-local color environment values; pass `-NoColorRestore` to preserve the inherited environment.
 - Launch with Windows Terminal (`wt`) when available and pass `new-tab --title`; otherwise fall back to `Start-Process powershell` and set `$host.UI.RawUI.WindowTitle`.
 

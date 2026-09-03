@@ -32,6 +32,15 @@ function Get-CodexHome {
     return (Join-Path $HOME ".codex")
 }
 
+function Get-ConfiguredModelProvider {
+    param([string]$CodexHome)
+    $configPath = Join-Path $CodexHome "config.toml"
+    if (-not (Test-Path -LiteralPath $configPath)) { return "" }
+    $match = Select-String -LiteralPath $configPath -Pattern '^\s*model_provider\s*=\s*["'']([^"'']+)["'']\s*(?:#.*)?$' | Select-Object -First 1
+    if ($match -and $match.Matches.Count -gt 0) { return $match.Matches[0].Groups[1].Value }
+    return ""
+}
+
 function Resolve-WindowsTerminal {
     $cmd = Get-Command wt.exe -ErrorAction SilentlyContinue
     if ($cmd) { return $cmd.Source }
@@ -489,6 +498,7 @@ switch ($Action) {
         Show-Snapshot -Snapshot (Load-Snapshot $SnapshotPath)
     }
     "restore" {
+        if (-not $ModelProvider) { $ModelProvider = Get-ConfiguredModelProvider -CodexHome $codexHome }
         Restore-Snapshot -Snapshot (Load-Snapshot $SnapshotPath) -CodexCommand $CodexCommand -IncludeCandidateSessions ([bool]$IncludeCandidates) -NoWt ([bool]$NoWindowsTerminal) -FullAccess (-not [bool]$NoFullAccess) -ModelProvider $ModelProvider -Model $Model -RestoreColor (-not [bool]$NoColorRestore) -DryRun ([bool]$DryRun)
     }
 }
