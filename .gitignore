@@ -11,6 +11,7 @@ config.toml.backup_*
 # Runtime/session data
 sessions/
 memories/
+memories/**
 .tmp/
 tmp/
 .sandbox/

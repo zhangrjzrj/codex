@@ -1,6 +1,6 @@
 ---
 name: project-memory-manager
-description: "Persist concise project-local memory using .codex-memory/index.md plus .codex-memory/threads/*.md, and restore relevant topic memory on demand."
+description: "Persist concise workdir-bound memory in the shared Codex memory store and restore relevant topic memory on demand."
 ---
 
 # Project Memory Manager
@@ -17,21 +17,29 @@ Use this skill when:
 
 ## Goal
 
-Keep project-local memory low-coupled and resumable.
+Keep shared memory low-coupled and resumable across projects and worktrees.
 
 Use this structure:
 
 ```text
-.codex-memory/
+<CODEX_HOME>/memories/
   index.md
+  projects/<project-key>.md
   threads/
     <topic>.md
 ```
 
-Memory restore/search must always start from this fixed project-local path:
+Memory restore/search must always start from this fixed shared path:
 
-- `.codex-memory/index.md`
-- `.codex-memory/threads/*.md`
+- `<CODEX_HOME>\memories\index.md`
+- `<CODEX_HOME>\memories\projects\*.md`
+- `<CODEX_HOME>\memories\threads\*.md`
+
+Every topic and entry MUST include:
+
+```md
+Workdir: <absolute working directory>
+```
 
 ## Structure rules
 
@@ -105,22 +113,23 @@ Recommended thread entry format:
 
 When the user asks to restore memory:
 
-1. Read `.codex-memory/index.md`
-2. Locate the most relevant topic file in `.codex-memory/threads/`
-3. Read the recent relevant entries from that topic file
-4. Summarize the conclusions first
-5. Continue execution
+1. Read `<CODEX_HOME>\memories\index.md`
+2. Filter index entries by the current absolute working directory
+3. Locate the most relevant topic file in `<CODEX_HOME>\memories\threads\`
+4. Read the recent relevant entries from that topic file
+5. Summarize the conclusions first
+6. Continue execution
 
 Do not dump the whole index or whole thread unless the user explicitly asks.
 
 ## Guardrails
 
-- This is project-local memory, not global memory
-- Never mix different working directories into one shared global worklog
+- This is shared memory; workdir binding prevents cross-project mixing
+- Never write a memory entry without an absolute `Workdir:`
 - Even inside one project directory, avoid mixing unrelated topics into one single long file
 - A `/rename` or user-declared topic rename applies only to the current window/topic binding
 - Never let one window's topic rename affect other windows' memory files
-- If `.codex-memory` or `threads/` does not exist, create it
+- If the shared memory directories do not exist, create them
 - Keep entries short, factual, and resumable
 
 ## Suggested trigger sentences

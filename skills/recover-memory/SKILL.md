@@ -1,6 +1,6 @@
 ---
 name: recover-memory
-description: Restore prior progress context from .codex-memory/worklog.md and append an end-of-round memory entry.
+description: Restore prior progress context from the shared Codex memory store and append a workdir-bound memory entry.
 ---
 
 # recover-memory
@@ -12,13 +12,14 @@ Use this skill when the user asks to "恢复记忆", "继续上次进度", or re
 - Ensure each round ends with a fresh memory update.
 
 ## Source of truth
-- Memory log file: `<project-root>\.codex-memory\worklog.md`
+- Shared memory root: `<CODEX_HOME>\memories\`
+- The active working directory MUST be recorded as `Workdir:` in every entry.
 
 ## Workflow
 1. Identify topic keywords from user request.
 2. Resolve project root as current working directory.
-3. Ensure `<project-root>\.codex-memory\worklog.md` exists (create directory/file if missing).
-4. Open `worklog.md` and find latest entries matching the topic.
+3. Resolve `<CODEX_HOME>\memories\index.md` and the relevant project/thread files; create them if missing.
+4. Filter by exact or nearest `Workdir:` before matching topic keywords.
 5. Return a concise restore summary:
    - Last known status
    - Key conclusions
@@ -26,10 +27,11 @@ Use this skill when the user asks to "恢复记忆", "继续上次进度", or re
 6. Continue execution based on restored context.
 
 ## End-of-round writeback (mandatory)
-At the end of each conversation round, append one entry to `<project-root>\.codex-memory\worklog.md` using this template:
+At the end of each conversation round, append one entry to `<CODEX_HOME>\memories\worklog.md` using this template:
 
 ```md
 ## YYYY-MM-DD HH:mm - <topic>
+- Workdir: <absolute working directory>
 - Progress: ...
 - Key conclusions: ...
 - Next step: ...
