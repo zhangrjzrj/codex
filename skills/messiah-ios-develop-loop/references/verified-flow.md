@@ -103,6 +103,22 @@ Do not leave the host at `Package/Script/Python`; that path is too shallow for P
 
 ## 6. Provision an SSH-capable signing keychain
 
+### Verified signing tuple
+
+The signing configuration is reusable across worktrees when the generated project uses the same Bundle ID and provisioning settings. Treat the worktree as a replaceable source path, not part of the portable signing identity:
+
+```text
+(
+  worktree path,
+  Bundle ID: com.netease.technicalcenter,
+  provisioning profile: profile5test,
+  signing identity: FEBBFCEF2905FD673C85B667231DFC180961F1F5,
+  keychain: /Users/game-netease/Desktop/ios_signing/build_reimport.keychain-db
+)
+```
+
+The Bundle ID, profile, signing identity, and keychain form the portable four-value signing contract. The worktree may change, but before building verify that its generated project has the same Bundle ID and that the profile belongs to that App ID. If App contents are changed after signing, preserve the entitlements from `embedded.mobileprovision` and sign the changed app again.
+
 Use a dedicated keychain rather than the GUI login keychain. The one-time setup requires a p12 exported with its private key. Keep all passwords on the Mac.
 
 Verified paths:
