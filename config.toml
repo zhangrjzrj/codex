@@ -1,4 +1,4 @@
-model_provider = "newapi_official"
+model_provider = "codexzh"
 
 # 下面两项是否生效取决于客户端版本；默认注释避免兼容性问题
 # network_access = "enabled"
@@ -15,7 +15,7 @@ notify = ["python", "C:\\Users\\zhangruojun\\.codex\\codex-notify.py"]
 approvals_reviewer = "user"
 personality = "pragmatic"
 plan_mode_reasoning_effort = "low"
-model = "gpt-5.4"
+model = "gpt-5.6-sol"
 model_reasoning_effort = "low"
 
 # =========================
@@ -133,12 +133,16 @@ trust_level = "trusted"
 [projects.'f:\l46\l46_trunk']
 trust_level = "trusted"
 
+[projects.'d:\hanhan\股权合同']
+trust_level = "trusted"
+
 [notice]
 hide_full_access_warning = true
 
 [notice.model_migrations]
 "gpt-5.2" = "gpt-5.4"
 "gpt-5.3-codex" = "gpt-5.4"
+"gpt-5.4" = "gpt-5.6-terra"
 
 [windows]
 sandbox = "unelevated"

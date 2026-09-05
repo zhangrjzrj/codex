@@ -93,9 +93,9 @@ function Invoke-DeviceDebugSend {
   $encoded = [uri]::EscapeDataString($Prompt)
   $commandId = [uri]::EscapeDataString(("cmd-{0}-{1}" -f (Get-Date -Format 'yyyyMMddHHmmssfff'), ([guid]::NewGuid().ToString('N').Substring(0, 8))))
   $deepLink = "duomilu://debug-chat?action=send_text&text=$encoded&command_id=$commandId"
-  $shellDeepLink = "'$deepLink'"
   $entryActivity = "$PackageName/io.dcloud.PandoraEntry"
-  & adb @script:AdbPrefix "shell" "am" "start" "-W" "-a" "android.intent.action.VIEW" "-d" $shellDeepLink "-n" $entryActivity | Out-Null
+  $shellCommand = "am start -W -a android.intent.action.VIEW -d '$deepLink' -n $entryActivity"
+  & adb @script:AdbPrefix "shell" $shellCommand | Out-Null
   if ($LASTEXITCODE -ne 0) {
     throw "adb debug deep link failed"
   }
