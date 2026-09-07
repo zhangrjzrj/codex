@@ -4,7 +4,9 @@ param(
 
     [string]$SnapshotPath = "",
 
-    [string]$CodexCommand = "codex",
+    [string]$CodexCommand = "codex.cmd",
+
+    [string[]]$SessionIds = @(),
 
     [int]$RecentMinutes = 240,
 
@@ -52,6 +54,18 @@ function Resolve-WindowsTerminal {
         if ($path -and (Test-Path -LiteralPath $path)) { return $path }
     }
     return $null
+}
+
+function Resolve-CodexCommandPath {
+    param([string]$CommandName)
+    if ($CommandName -and (Test-Path -LiteralPath $CommandName)) {
+        return $CommandName
+    }
+    $cmd = Get-Command codex.cmd -ErrorAction SilentlyContinue
+    if ($cmd -and $cmd.Path) { return $cmd.Path }
+    $cmd = Get-Command codex -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($cmd -and $cmd.Path) { return $cmd.Path }
+    throw "codex.cmd not found"
 }
 
 function Convert-WmiTime {
@@ -401,56 +415,58 @@ function Quote-Arg {
     return '"' + ($Value -replace '"', '\"') + '"'
 }
 
+function Set-RestoreColorEnvironment {
+    param([bool]$RestoreColor)
+    if (-not $RestoreColor) { return }
+    [Environment]::SetEnvironmentVariable('NO_COLOR', $null, 'Process')
+    $env:TERM = 'xterm-256color'
+    $env:COLORTERM = 'truecolor'
+}
+
 function Start-CodexSession {
     param(
         [string]$CodexCommand,
         [string]$SessionId,
         [string]$Cwd,
         [string]$Title,
-        [bool]$UseWindowsTerminal,
         [bool]$FullAccess,
         [string]$ModelProvider,
         [string]$Model,
         [bool]$RestoreColor,
         [bool]$DryRun
     )
-    $cdPart = ""
-    if ($Cwd -and (Test-Path -LiteralPath $Cwd)) {
-        $cdPart = "-C " + (Quote-Arg $Cwd) + " "
-    }
-    $accessPart = if ($FullAccess) { "--dangerously-bypass-approvals-and-sandbox " } else { "" }
-    $providerPart = if ($ModelProvider) { "-c " + (Quote-Arg ("model_provider=" + $ModelProvider)) + " " } else { "" }
-    $modelPart = if ($Model) { "-m " + (Quote-Arg $Model) + " " } else { "" }
-    $colorPart = if ($RestoreColor) {
-        '[Environment]::SetEnvironmentVariable(''NO_COLOR'', $null, ''Process''); $env:TERM = ''xterm-256color''; $env:COLORTERM = ''truecolor''; '
-    }
-    else {
-        ""
-    }
-    $cmd = $colorPart + "$CodexCommand $accessPart$cdPart" + "resume $SessionId $providerPart$modelPart"
+    Set-RestoreColorEnvironment -RestoreColor $RestoreColor
 
-    if ($UseWindowsTerminal) {
-        $args = @("new-tab")
-        if ($Title) {
-            $args += @("--title", $Title)
-        }
-        $args += @("powershell", "-NoExit", "-Command", $cmd)
-        if ($DryRun) {
-            Write-Host ("DRY-RUN wt {0}" -f (($args | ForEach-Object { Quote-Arg $_ }) -join " "))
-            return
-        }
-        $wtPath = Resolve-WindowsTerminal
-        if (-not $wtPath) { throw 'Windows Terminal (wt.exe) not found' }
-        & $wtPath @args | Out-Null
+    $args = @()
+    if ($FullAccess) {
+        $args += "--dangerously-bypass-approvals-and-sandbox"
     }
-    else {
-        $titlePart = if ($Title) { '$host.UI.RawUI.WindowTitle = ' + (Quote-Arg $Title) + '; ' } else { "" }
-        if ($DryRun) {
-            Write-Host ("DRY-RUN powershell -NoExit -Command {0}" -f (Quote-Arg ($titlePart + $cmd)))
-            return
-        }
-        Start-Process powershell -ArgumentList @("-NoExit", "-Command", ($titlePart + $cmd)) | Out-Null
+    if ($Cwd -and (Test-Path -LiteralPath $Cwd)) {
+        $args += @("-C", $Cwd)
     }
+    $args += @("resume", $SessionId)
+    if ($ModelProvider) {
+        $args += @("-c", "model_provider=$ModelProvider")
+    }
+    if ($Model) {
+        $args += @("-m", $Model)
+    }
+
+    $argText = ($args | ForEach-Object { Quote-Arg $_ }) -join " "
+    if ($DryRun) {
+        Write-Host ("DRY-RUN {0} {1}" -f $CodexCommand, $argText)
+        return
+    }
+
+    $startParams = @{
+        FilePath = $CodexCommand
+        ArgumentList = $args
+    }
+    if ($Cwd -and (Test-Path -LiteralPath $Cwd)) {
+        $startParams.WorkingDirectory = $Cwd
+    }
+    $startParams.FilePath = Resolve-CodexCommandPath -CommandName $CodexCommand
+    Start-Process @startParams | Out-Null
 }
 
 function Restore-Snapshot {
@@ -458,14 +474,12 @@ function Restore-Snapshot {
         [object]$Snapshot,
         [string]$CodexCommand,
         [bool]$IncludeCandidateSessions,
-        [bool]$NoWt,
         [bool]$FullAccess,
         [string]$ModelProvider,
         [string]$Model,
         [bool]$RestoreColor,
         [bool]$DryRun
     )
-    $useWt = (-not $NoWt) -and [bool](Get-Command wt -ErrorAction SilentlyContinue)
     $sessions = @($Snapshot.sessions | Where-Object { $_.kind -eq "explicit" -or $IncludeCandidateSessions })
     $sessions = @($sessions | Sort-Object kind, id -Unique)
 
@@ -475,13 +489,47 @@ function Restore-Snapshot {
         $title = if ($s.PSObject.Properties.Name -contains "title") { [string]$s.title } else { "" }
         $titleLabel = if ($title) { " title=$title" } else { "" }
         Write-Host "Opening $($s.kind) [$accessLabel]: $($s.id) $($s.cwd)$titleLabel"
-        Start-CodexSession -CodexCommand $CodexCommand -SessionId $s.id -Cwd $s.cwd -Title $title -UseWindowsTerminal $useWt -FullAccess $FullAccess -ModelProvider $ModelProvider -Model $Model -RestoreColor $RestoreColor -DryRun $DryRun
+        Start-CodexSession -CodexCommand $CodexCommand -SessionId $s.id -Cwd $s.cwd -Title $title -FullAccess $FullAccess -ModelProvider $ModelProvider -Model $Model -RestoreColor $RestoreColor -DryRun $DryRun
         Start-Sleep -Milliseconds 200
     }
 
     $candidateLeft = @($Snapshot.sessions | Where-Object { $_.kind -eq "candidate" }).Count
     if (-not $IncludeCandidateSessions -and $candidateLeft -gt 0) {
         Write-Host "Candidate sessions were not opened. Re-run restore with -IncludeCandidates to open them."
+    }
+}
+
+function Restore-SessionIds {
+    param(
+        [string]$CodexHome,
+        [string[]]$Ids,
+        [string]$CodexCommand,
+        [bool]$FullAccess,
+        [string]$ModelProvider,
+        [string]$Model,
+        [bool]$RestoreColor,
+        [bool]$DryRun
+    )
+    $expandedIds = @()
+    foreach ($rawId in $Ids) {
+        if (-not $rawId) { continue }
+        $expandedIds += @($rawId -split "," | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    }
+
+    foreach ($id in $expandedIds) {
+        if (-not $id) { continue }
+        $file = Find-SessionFileById -CodexHome $CodexHome -SessionId $id
+        if (-not $file) {
+            Write-Warning "Session file not found: $id"
+            continue
+        }
+        $meta = Get-SessionMeta $file
+        if (-not $meta) {
+            Write-Warning "Session metadata unreadable: $file"
+            continue
+        }
+        Start-CodexSession -CodexCommand $CodexCommand -SessionId $meta.Id -Cwd $meta.Cwd -Title "" -FullAccess $FullAccess -ModelProvider $ModelProvider -Model $Model -RestoreColor $RestoreColor -DryRun $DryRun
+        Start-Sleep -Milliseconds 200
     }
 }
 
@@ -499,6 +547,11 @@ switch ($Action) {
     }
     "restore" {
         if (-not $ModelProvider) { $ModelProvider = Get-ConfiguredModelProvider -CodexHome $codexHome }
-        Restore-Snapshot -Snapshot (Load-Snapshot $SnapshotPath) -CodexCommand $CodexCommand -IncludeCandidateSessions ([bool]$IncludeCandidates) -NoWt ([bool]$NoWindowsTerminal) -FullAccess (-not [bool]$NoFullAccess) -ModelProvider $ModelProvider -Model $Model -RestoreColor (-not [bool]$NoColorRestore) -DryRun ([bool]$DryRun)
+        if ($SessionIds -and $SessionIds.Count -gt 0) {
+            Restore-SessionIds -CodexHome $codexHome -Ids $SessionIds -CodexCommand $CodexCommand -FullAccess (-not [bool]$NoFullAccess) -ModelProvider $ModelProvider -Model $Model -RestoreColor (-not [bool]$NoColorRestore) -DryRun ([bool]$DryRun)
+        }
+        else {
+            Restore-Snapshot -Snapshot (Load-Snapshot $SnapshotPath) -CodexCommand $CodexCommand -IncludeCandidateSessions ([bool]$IncludeCandidates) -FullAccess (-not [bool]$NoFullAccess) -ModelProvider $ModelProvider -Model $Model -RestoreColor (-not [bool]$NoColorRestore) -DryRun ([bool]$DryRun)
+        }
     }
 }

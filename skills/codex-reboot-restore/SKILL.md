@@ -41,7 +41,7 @@ Restore uses full Codex permissions by default:
 --dangerously-bypass-approvals-and-sandbox
 ```
 
-Restore also enables TUI color highlighting by default in each new process. It clears inherited `NO_COLOR`, sets `TERM=xterm-256color`, and sets `COLORTERM=truecolor` before running `codex resume`. This prevents a controlling sandbox or non-interactive shell from accidentally forcing the restored TUI into monochrome mode. These changes apply only to the restored process, not to user or machine environment variables.
+Restore also enables TUI color highlighting by default before launching restored processes. It clears inherited `NO_COLOR`, sets `TERM=xterm-256color`, and sets `COLORTERM=truecolor` in the restore script process before starting `codex resume`. This prevents a controlling sandbox or non-interactive shell from accidentally forcing the restored TUI into monochrome mode. These changes apply only to the restore process and child Codex processes, not to user or machine environment variables.
 
 To preserve the inherited color environment instead:
 
@@ -61,6 +61,12 @@ To resume a session with a different provider or model while preserving its cont
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File "$env:CODEX_HOME\skills\codex-reboot-restore\scripts\codex_reboot_restore.ps1" -Action restore -ModelProvider duckcoding -Model gpt-5.6-sol
+```
+
+To restore exact sessions without relying on snapshot candidate selection:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "$env:CODEX_HOME\skills\codex-reboot-restore\scripts\codex_reboot_restore.ps1" -Action restore -SessionIds 019e9686-378d-7900-9097-c4b19bc9f4ff,019e9686-378d-7900-9097-c4b19bc9f500 -ModelProvider codexzh
 ```
 
 `resume` can retain the provider recorded in the session. Use `-ModelProvider` to pass an explicit `-c model_provider=...` override and `-Model` to pass an explicit model override. If the new window reports a read-only `.codex` database or access denied under `CodexSandboxUsers`, run the restore command from outside the sandbox with elevated execution approval; do not delete or rewrite the session database.
@@ -85,10 +91,12 @@ powershell -ExecutionPolicy Bypass -File "$env:CODEX_HOME\skills\codex-reboot-re
 - Save `title` and `title_source` when a title can be resolved.
 - Restore exact sessions by default.
 - Restore candidate sessions only when the script is run with `-IncludeCandidates`.
+- When `-SessionIds` is provided, restore those exact ids by looking up their local session files and reading `cwd` from each file's `session_meta`; snapshot candidate selection is skipped.
 - Restore sessions with `--dangerously-bypass-approvals-and-sandbox` by default; pass `-NoFullAccess` to disable this.
 - Preserve session context while reading the active config provider by default; allow explicit provider/model overrides through `-ModelProvider` and `-Model`.
 - Restore TUI color highlighting by default through process-local color environment values; pass `-NoColorRestore` to preserve the inherited environment.
-- Launch with Windows Terminal (`wt`) when available and pass `new-tab --title`; otherwise fall back to `Start-Process powershell` and set `$host.UI.RawUI.WindowTitle`.
+- Launch restored sessions directly with `Start-Process -FilePath codex -ArgumentList @(...)`. The script avoids `wt` and `powershell -Command` command-string wrapping during restore because nested quoting can make Windows treat the whole command line as the executable path.
+- `-NoWindowsTerminal` remains accepted for older command lines, but restore no longer uses Windows Terminal internally.
 
 ## Safety
 
