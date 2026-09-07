@@ -52,6 +52,8 @@ hooks.json
 reboot-restore/
 sqlite/
 vendor_imports/
+.sandbox_migration
+thread-writer-locks/
 
 # Local model/provider configs
 fable5-*.config.toml
