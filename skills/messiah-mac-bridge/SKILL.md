@@ -16,10 +16,21 @@ Use this skill when you need Codex to operate a remote Mac host for Messiah task
 
 ## Fixed connection profile
 
+This skill has one default Mac target. Use it first unless the user explicitly points to another Mac.
+
 - SSH host alias: `mac-h74`
 - Remote user/home: `game-netease`, `/Users/game-netease`
 - Remote workspace root: `/Users/game-netease/Desktop/messiah_h74`
 - Remote Messiah root: `/Users/game-netease/Desktop/messiah_h74/messiah`
+
+## Current identity
+
+- Host alias: `mac-h74`
+- Host IP: `10.226.143.4`
+- SSH private key: `C:\Users\zhangruojun\.ssh\id_ed25519_mac_h74`
+- Default use: iOS build, install, `devicectl`, Telnet, log collection
+
+If a visible Mac on screen shows a different hostname or a different CoreDevice state, treat it as a different machine until `hostname` and `xcrun devicectl list devices` confirm otherwise.
 
 ## Core commands
 

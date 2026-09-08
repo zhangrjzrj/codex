@@ -1,4 +1,4 @@
-model_provider = "codexzh"
+model_provider = "duckcoding"
 
 # 下面两项是否生效取决于客户端版本；默认注释避免兼容性问题
 # network_access = "enabled"
@@ -15,7 +15,7 @@ notify = ["python", "C:\\Users\\zhangruojun\\.codex\\codex-notify.py"]
 approvals_reviewer = "user"
 personality = "pragmatic"
 plan_mode_reasoning_effort = "low"
-model = "gpt-5.6-sol"
+model = "gpt-5.5"
 model_reasoning_effort = "low"
 
 # =========================
