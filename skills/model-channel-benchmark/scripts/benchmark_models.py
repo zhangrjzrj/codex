@@ -28,6 +28,12 @@ def parse_args() -> argparse.Namespace:
 
 def resolve_command() -> list[str]:
     executable = shutil.which("codex")
+    if os.name == "nt":
+        for candidate in ("codex.cmd", "codex.ps1"):
+            resolved = shutil.which(candidate)
+            if resolved:
+                executable = resolved
+                break
     if not executable:
         raise SystemExit("codex command was not found")
     if os.name == "nt" and executable.lower().endswith((".cmd", ".bat")):
