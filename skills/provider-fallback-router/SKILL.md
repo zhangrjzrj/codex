@@ -16,11 +16,12 @@ Use this skill when the user wants a reusable local routing layer that sends req
 
 ## Workflow
 
-1. Create or update the local router implementation.
-2. Bind the client to the local router instead of binding it directly to an upstream provider.
-3. Put the primary and backup upstream values in environment variables or local config.
-4. Verify the router with one success case and one forced-failure fallback case.
-5. If the client already has a provider setting, point it at the router and keep the upstreams hidden behind the router.
+1. Use `scripts/fallback_router.py` as the local router implementation.
+2. Bind the client to `http://127.0.0.1:8787/v1` instead of binding it directly to an upstream provider.
+3. Put the primary and backup upstream values in `J_PRIMARY_BASE`, `J_PRIMARY_KEY`, `J_SECONDARY_BASE`, and `J_SECONDARY_KEY`.
+4. Start the router with `scripts/run_fallback_router.ps1`.
+5. Verify the router with `scripts/fallback_router_smoke.py`, including one forced-failure fallback case.
+6. If the client already has a provider setting, point it at the router and keep the upstreams hidden behind the router.
 
 ## Constraints
 
@@ -31,3 +32,9 @@ Use this skill when the user wants a reusable local routing layer that sends req
 ## Expected result
 
 The client talks to one local base URL, and the router decides whether the request goes to the primary upstream or the backup upstream.
+
+## Scripts
+
+- `scripts/fallback_router.py`: local OpenAI-compatible HTTP router.
+- `scripts/run_fallback_router.ps1`: validates required environment variables and starts the router.
+- `scripts/fallback_router_smoke.py`: runs an isolated primary-failure-to-backup test.
