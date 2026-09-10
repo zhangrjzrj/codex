@@ -17,6 +17,9 @@ def main() -> int:
     subprocess.Popen(
         [sys.executable, router],
         env=environment,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
         creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
     )
     return 0

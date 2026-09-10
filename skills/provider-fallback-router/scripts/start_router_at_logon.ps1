@@ -17,7 +17,15 @@ foreach ($name in @("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "htt
 
 $listener = Get-NetTCPConnection -LocalPort 8787 -State Listen -ErrorAction SilentlyContinue
 if ($listener) {
-    exit 0
+    curl.exe --silent --show-error --max-time 3 "http://127.0.0.1:8787/health" | Out-Null
+    if ($LASTEXITCODE -eq 0) {
+        exit 0
+    }
+    $owners = $listener | Select-Object -ExpandProperty OwningProcess -Unique
+    foreach ($owner in $owners) {
+        Stop-Process -Id $owner -Force -ErrorAction SilentlyContinue
+    }
+    Start-Sleep -Milliseconds 500
 }
 
 & (Join-Path $PSScriptRoot "run_fallback_router.ps1")

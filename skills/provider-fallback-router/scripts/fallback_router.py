@@ -99,6 +99,18 @@ class Handler(BaseHTTPRequestHandler):
                 )
             except error.HTTPError as exc:
                 status, response_headers, response_body = _error_response(exc)
+                if index == 0 and _fallback_status(status):
+                    last_error = f"{upstream.name} returned {status}"
+                    continue
+                self.send_response(status)
+                for key, value in response_headers.items():
+                    if key.lower() not in {"transfer-encoding", "content-length", "connection", "content-encoding"}:
+                        self.send_header(key, value)
+                self.send_header("Content-Length", str(len(response_body)))
+                self.send_header("X-J-Route", upstream.name)
+                self.end_headers()
+                self.wfile.write(response_body)
+                return
             except (error.URLError, TimeoutError, OSError) as exc:
                 last_error = f"{upstream.name}: {exc}"
                 continue
