@@ -15,7 +15,7 @@ notify = ["python", "C:\\Users\\zhangruojun\\.codex\\codex-notify.py"]
 approvals_reviewer = "user"
 personality = "pragmatic"
 plan_mode_reasoning_effort = "low"
-model = "gpt-5.6-sol"
+model = "gpt-5.5"
 model_reasoning_effort = "low"
 
 # =========================
@@ -40,6 +40,12 @@ model_auto_compact_token_limit = 900000
 [model_providers.duckcoding]
 name = "OpenAI"
 base_url = "https://api.duckcoding.ai/v1"
+wire_api = "responses"
+requires_openai_auth = true
+
+[model_providers.qcode]
+name = "OpenAI"
+base_url = "https://asia.qcode.cc/api"
 wire_api = "responses"
 requires_openai_auth = true
 
