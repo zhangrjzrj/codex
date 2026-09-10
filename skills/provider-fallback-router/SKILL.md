@@ -24,6 +24,28 @@ Use this skill when the user wants a reusable local routing layer that sends req
 6. Verify `http://127.0.0.1:8787/health`, then run `scripts/fallback_router_smoke.py`, including one forced-failure fallback case.
 7. If the client already has a provider setting, point it at the router and keep the upstreams hidden behind the router.
 
+## Persistence on Windows
+
+Use the detached launcher for a one-off session. When the router should survive computer restarts, configure a Windows Task Scheduler task that runs at the current user's logon:
+
+```powershell
+$python = (Get-Command python.exe).Source
+$script = "$env:USERPROFILE\.codex\skills\provider-fallback-router\scripts\start_fallback_router.py"
+$action = New-ScheduledTaskAction -Execute $python -Argument ('"' + $script + '"')
+$trigger = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
+$principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Limited
+Register-ScheduledTask -TaskName "JFallbackRouter" -Action $action -Trigger $trigger -Principal $principal -Force
+```
+
+After installation, verify both the task and the router:
+
+```powershell
+Get-ScheduledTask -TaskName "JFallbackRouter"
+curl.exe http://127.0.0.1:8787/health
+```
+
+Remove the optional startup task with `Unregister-ScheduledTask -TaskName "JFallbackRouter" -Confirm:$false`.
+
 ## Constraints
 
 - Do not store real API keys in the skill.
