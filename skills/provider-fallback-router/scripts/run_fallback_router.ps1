@@ -7,4 +7,4 @@ if (-not $env:J_PRIMARY_BASE -or -not $env:J_PRIMARY_KEY -or -not $env:J_SECONDA
 $env:J_HOST = if ($env:J_HOST) { $env:J_HOST } else { "127.0.0.1" }
 $env:J_PORT = if ($env:J_PORT) { $env:J_PORT } else { "8787" }
 
-python "$PSScriptRoot\fallback_router.py"
+python "$PSScriptRoot\start_fallback_router.py"
