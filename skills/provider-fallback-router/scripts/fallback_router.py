@@ -54,14 +54,14 @@ def _fallback_status(code: int) -> bool:
     return code in {401, 403, 429} or code >= 500
 
 
-def _call_upstream(
+def _open_upstream(
     upstream: Upstream,
     method: str,
     path: str,
     body: bytes,
     headers: dict[str, str],
     timeout: int,
-) -> tuple[int, dict[str, str], bytes]:
+) -> request.addinfourl:
     req = request.Request(
         _join(upstream.base_url, path),
         data=body if body else None,
@@ -72,8 +72,7 @@ def _call_upstream(
             "Accept": headers.get("Accept", "application/json"),
         },
     )
-    with request.urlopen(req, timeout=timeout) as resp:
-        return resp.status, dict(resp.headers.items()), resp.read()
+    return request.urlopen(req, timeout=timeout)
 
 
 def _error_response(exc: error.HTTPError) -> tuple[int, dict[str, str], bytes]:
@@ -93,10 +92,13 @@ class Handler(BaseHTTPRequestHandler):
         last_error: str | None = None
 
         for index, upstream in enumerate(_upstreams()):
+            response = None
             try:
-                status, response_headers, response_body = _call_upstream(
+                response = _open_upstream(
                     upstream, self.command, self.path, raw, headers, timeout
                 )
+                status = response.status
+                response_headers = dict(response.headers.items())
             except error.HTTPError as exc:
                 status, response_headers, response_body = _error_response(exc)
                 if index == 0 and _fallback_status(status):
@@ -117,16 +119,22 @@ class Handler(BaseHTTPRequestHandler):
 
             if index == 0 and _fallback_status(status):
                 last_error = f"{upstream.name} returned {status}"
+                response.close()
                 continue
 
             self.send_response(status)
             for key, value in response_headers.items():
                 if key.lower() not in {"transfer-encoding", "content-length", "connection", "content-encoding"}:
                     self.send_header(key, value)
-            self.send_header("Content-Length", str(len(response_body)))
             self.send_header("X-J-Route", upstream.name)
             self.end_headers()
-            self.wfile.write(response_body)
+            while True:
+                chunk = response.readline()
+                if not chunk:
+                    break
+                self.wfile.write(chunk)
+                self.wfile.flush()
+            response.close()
             return
 
         body = json.dumps({"error": last_error or "no upstream available"}).encode("utf-8")
