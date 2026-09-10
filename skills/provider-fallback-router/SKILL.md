@@ -14,6 +14,25 @@ Use this skill when the user wants a reusable local routing layer that sends req
 - Use a fixed provider order unless the user asks for a different one.
 - Prefer config and environment variables over hardcoded secrets.
 
+## Local Auth Prerequisite
+
+The logon startup script requires a local, untracked credentials file:
+
+```text
+%USERPROFILE%\.codex\auth.json.bf
+```
+
+It must contain valid values for these fields:
+
+```json
+{
+  "OPENAI_API_KEY_codexzh_888": "<local secret>",
+  "OPENAI_API_KEY_duckcoding": "<local secret>"
+}
+```
+
+The file is read only on the local machine. It is intentionally excluded from Git and must not be committed, copied into the skill, or printed in logs. If the file is missing or either field is empty, `scripts/start_router_at_logon.ps1` cannot start the router. Preparing this file is a deployment prerequisite when installing the skill on another machine.
+
 ## Workflow
 
 1. Use `scripts/fallback_router.py` as the local router implementation.
