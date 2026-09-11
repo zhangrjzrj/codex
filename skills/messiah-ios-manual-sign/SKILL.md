@@ -31,6 +31,32 @@ Typical triggers:
   - `PROVISIONING_PROFILE_SPECIFIER=profile5test`
   - `CODE_SIGN_IDENTITY=Apple Development: Qinlin Li (XUKN5ANLY9)`
 
+### Verified second signing combination
+
+- Validation project: `/Users/game-netease/Desktop/nbs_gpu/build_ios_j/nbs_gpu.xcodeproj`
+- iOS scheme: `nbs_gpu_ios_preview`
+- Verified bundle id: `com.netease.techcenter.testcase`
+- Verified provisioning profile: `testcaseProfile`
+- Verified team: `S3NPTV6S84`
+- Verified signing identity: `Apple Development: Qinlin Li (XUKN5ANLY9)`
+- Verified app: `nbs_gpu_ios_preview.app`
+- Validation evidence:
+  - `xcodebuild`: `BUILD SUCCEEDED`
+  - `application-identifier = S3NPTV6S84.com.netease.techcenter.testcase`
+  - `devicectl device install app`: success
+  - `devicectl device process launch`: success
+  - device process remained running after launch
+
+The profile file name is `testcaseProfile`, but its actual application identifier is
+`com.netease.techcenter.testcase`. Do not use
+`com.netease.technicalcenter.testcase`.
+
+The `nbs_gpu` source `apple/ios/Info.plist` currently hard-codes
+`com.netease.technicalcenter`. Command-line `PRODUCT_BUNDLE_IDENTIFIER` alone does
+not replace that value. Before using this second combination, ensure the generated
+app's final `CFBundleIdentifier` is `com.netease.techcenter.testcase`; otherwise
+the app may be signed with a matching profile but still carry the wrong bundle ID.
+
 ## Closed-loop procedure
 
 ### 1. Ensure remote tracked code is clean
@@ -65,6 +91,15 @@ Expected baseline after generate:
   - `PROVISIONING_PROFILE_SPECIFIER = "";`
 
 That is acceptable because the real signing inputs are injected through `xcodebuild`.
+
+For non-Messiah projects such as `nbs_gpu`, also inspect the final app bundle:
+
+```powershell
+ssh mac-h74 "/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' /Users/game-netease/Desktop/nbs_gpu/build_ios_j/apple/Debug-iphoneos/nbs_gpu_ios_preview.app/Info.plist"
+```
+
+The final `CFBundleIdentifier` must equal the Bundle ID covered by the selected
+provisioning profile before installation.
 
 ### 4. Run the verified manual-signing build
 
