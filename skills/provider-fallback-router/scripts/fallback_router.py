@@ -7,8 +7,9 @@ import sys
 import time
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from typing import Iterable
-from urllib import error, request
+from urllib import error, parse, request
 
 
 @dataclass(frozen=True)
@@ -54,6 +55,47 @@ def _fallback_status(code: int) -> bool:
     return code in {401, 403, 429} or code >= 500
 
 
+def _debug_enabled() -> bool:
+    value = os.environ.get("J_DEBUG", os.environ.get("J_LOG_MODE", "")).strip().lower()
+    return value in {"1", "true", "yes", "on", "debug"}
+
+
+def _debug_log_path() -> Path:
+    configured = os.environ.get("J_DEBUG_LOG", "").strip()
+    if configured:
+        return Path(configured).expanduser()
+    home = Path(os.environ.get("USERPROFILE") or os.environ.get("HOME") or ".")
+    return home / ".codex" / "logs" / "jfallback-debug.log"
+
+
+def _safe_upstream_url(upstream: Upstream, path: str) -> str:
+    url = _join(upstream.base_url, path)
+    parsed = parse.urlsplit(url)
+    return parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path, parsed.query, ""))
+
+
+def _trim_debug_body(body: bytes) -> str:
+    limit = int(os.environ.get("J_DEBUG_BODY_CHARS", "2000") or "2000")
+    text = body.decode("utf-8", errors="replace")
+    if len(text) > limit:
+        return text[:limit] + "...[truncated]"
+    return text
+
+
+def _debug_log(event: str, **fields: object) -> None:
+    if not _debug_enabled():
+        return
+    path = _debug_log_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    record = {
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "event": event,
+        **fields,
+    }
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")
+
+
 def _open_upstream(
     upstream: Upstream,
     method: str,
@@ -83,7 +125,12 @@ class Handler(BaseHTTPRequestHandler):
     server_version = "JFallbackRouter/0.1"
 
     def log_message(self, fmt: str, *args: object) -> None:
-        sys.stderr.write("%s - - [%s] %s\n" % (self.client_address[0], self.log_date_time_string(), fmt % args))
+        if _debug_enabled():
+            _debug_log(
+                "access",
+                client=self.client_address[0],
+                message=fmt % args,
+            )
 
     def _handle(self) -> None:
         timeout = int(os.environ.get("J_TIMEOUT_SEC", "60"))
@@ -101,7 +148,18 @@ class Handler(BaseHTTPRequestHandler):
                 response_headers = dict(response.headers.items())
             except error.HTTPError as exc:
                 status, response_headers, response_body = _error_response(exc)
-                if index == 0 and _fallback_status(status):
+                should_fallback = index == 0 and _fallback_status(status)
+                _debug_log(
+                    "upstream_http_error",
+                    route=upstream.name,
+                    method=self.command,
+                    path=self.path,
+                    upstream_url=_safe_upstream_url(upstream, self.path),
+                    status=status,
+                    fallback=should_fallback,
+                    response_body=_trim_debug_body(response_body),
+                )
+                if should_fallback:
                     last_error = f"{upstream.name} returned {status}"
                     continue
                 self.send_response(status)
@@ -114,10 +172,27 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(response_body)
                 return
             except (error.URLError, TimeoutError, OSError) as exc:
+                _debug_log(
+                    "upstream_transport_error",
+                    route=upstream.name,
+                    method=self.command,
+                    path=self.path,
+                    upstream_url=_safe_upstream_url(upstream, self.path),
+                    error=repr(exc),
+                )
                 last_error = f"{upstream.name}: {exc}"
                 continue
 
             if index == 0 and _fallback_status(status):
+                _debug_log(
+                    "upstream_fallback_status",
+                    route=upstream.name,
+                    method=self.command,
+                    path=self.path,
+                    upstream_url=_safe_upstream_url(upstream, self.path),
+                    status=status,
+                    fallback=True,
+                )
                 last_error = f"{upstream.name} returned {status}"
                 response.close()
                 continue
@@ -138,6 +213,13 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         body = json.dumps({"error": last_error or "no upstream available"}).encode("utf-8")
+        _debug_log(
+            "all_upstreams_failed",
+            method=self.command,
+            path=self.path,
+            error=last_error or "no upstream available",
+            status=502,
+        )
         self.send_response(502)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
@@ -172,6 +254,7 @@ def main() -> int:
     host = os.environ.get("J_HOST", "127.0.0.1")
     port = int(os.environ.get("J_PORT", "8787"))
     server = ThreadingHTTPServer((host, port), Handler)
+    _debug_log("router_started", host=host, port=port)
     print(f"listening on http://{host}:{port}", flush=True)
     server.serve_forever()
     return 0

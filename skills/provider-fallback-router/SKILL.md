@@ -16,22 +16,31 @@ Use this skill when the user wants a reusable local routing layer that sends req
 
 ## Local Auth Prerequisite
 
-The logon startup script requires a local, untracked credentials file:
+The logon startup script reads local credentials from:
 
 ```text
-%USERPROFILE%\.codex\auth.json.bf
+%USERPROFILE%\.codex\auth.json
 ```
 
 It must contain valid values for these fields:
 
 ```json
 {
-  "OPENAI_API_KEY_codexzh_888": "<local secret>",
-  "OPENAI_API_KEY_duckcoding": "<local secret>"
+  "OPENAI_API_KEY_qcode": "<local secret>",
+  "OPENAI_API_KEY_codexzh_888": "<local secret>"
 }
 ```
 
 The file is read only on the local machine. It is intentionally excluded from Git and must not be committed, copied into the skill, or printed in logs. If the file is missing or either field is empty, `scripts/start_router_at_logon.ps1` cannot start the router. Preparing this file is a deployment prerequisite when installing the skill on another machine.
+
+## Logging Modes
+
+The router supports two runtime modes:
+
+- Default mode: no debug file is written. Detached startup sends stdout and stderr to `DEVNULL`.
+- Debug mode: set `J_DEBUG=1` or `J_LOG_MODE=debug` before startup. Errors are appended as JSONL to `J_DEBUG_LOG`, or `%USERPROFILE%\.codex\logs\jfallback-debug.log` when `J_DEBUG_LOG` is not set.
+
+Debug records include route name, method, path, sanitized upstream URL, status, fallback decision, transport error text, and bounded upstream error body. API keys are never written.
 
 ## Workflow
 
@@ -40,7 +49,7 @@ The file is read only on the local machine. It is intentionally excluded from Gi
 3. Put the primary and backup upstream values in `J_PRIMARY_BASE`, `J_PRIMARY_KEY`, `J_SECONDARY_BASE`, and `J_SECONDARY_KEY`.
 4. Start the router with `scripts/run_fallback_router.ps1`; it must launch a detached background process so closing the CLI does not stop the router.
 5. The launcher must remove inherited `HTTP_PROXY`, `HTTPS_PROXY`, and `ALL_PROXY` values when they point to an unavailable local proxy; upstream connectivity must be tested directly.
-6. Verify `http://127.0.0.1:8787/health`, then run `scripts/fallback_router_smoke.py`, including one forced-failure fallback case.
+6. Verify `http://127.0.0.1:8787/health`, then run `scripts/fallback_router_smoke.py`, including one forced-failure fallback case and debug-log check.
 7. If the client already has a provider setting, point it at the router and keep the upstreams hidden behind the router.
 
 ## Persistence on Windows

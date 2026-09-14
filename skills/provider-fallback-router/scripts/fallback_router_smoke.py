@@ -6,6 +6,7 @@ import json
 import os
 import socket
 import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -55,6 +56,9 @@ def main() -> int:
     primary_port = _free_port()
     backup_port = _free_port()
     router_port = _free_port()
+    log_path = Path(tempfile.gettempdir()) / f"jfallback-smoke-{router_port}.jsonl"
+    if log_path.exists():
+        log_path.unlink()
     _serve(primary_port, "primary")
     _serve(backup_port, "backup")
 
@@ -65,6 +69,8 @@ def main() -> int:
             "J_SECONDARY_BASE": f"http://127.0.0.1:{backup_port}/v1",
             "J_SECONDARY_KEY": "backup-key",
             "J_PORT": str(router_port),
+            "J_DEBUG": "1",
+            "J_DEBUG_LOG": str(log_path),
         }
     )
     threading.Thread(target=router.main, daemon=True).start()
@@ -81,6 +87,12 @@ def main() -> int:
         assert resp.status == 200, resp.status
         assert resp.headers.get("X-J-Route") == "backup", resp.headers.get("X-J-Route")
         assert payload["route"] == "backup", payload
+
+    log_text = log_path.read_text(encoding="utf-8")
+    assert "upstream_http_error" in log_text, log_text
+    assert "primary" in log_text, log_text
+    assert "primary-key" not in log_text, log_text
+    assert "backup-key" not in log_text, log_text
 
     print("smoke ok")
     return 0
