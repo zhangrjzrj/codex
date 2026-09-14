@@ -31,6 +31,17 @@ Typical triggers:
   - `PROVISIONING_PROFILE_SPECIFIER=profile5test`
   - `CODE_SIGN_IDENTITY=Apple Development: Qinlin Li (XUKN5ANLY9)`
 
+### Connected iOS devices
+
+The device list is independent from signing combinations. A device may use either
+signing combination when the selected provisioning profile contains that device's
+UDID.
+
+| Device name | Model | CoreDevice UDID | Status when verified |
+|---|---|---|---|
+| `张若君的 iPhone (2)` | iPhone 17 Pro Max (`iPhone18,2`) | `6FED0C41-064F-5954-91B6-0262253CB740` | connected |
+| `iPhone 13` | iPhone 13 (`iPhone14,5`) | `11E6D8F3-8AF5-5A99-BFC3-B5AE7759A13B` | previously connected |
+
 ### Verified second signing combination
 
 - Validation project: `/Users/game-netease/Desktop/nbs_gpu/build_ios_j/nbs_gpu.xcodeproj`
@@ -56,6 +67,16 @@ The `nbs_gpu` source `apple/ios/Info.plist` currently hard-codes
 not replace that value. Before using this second combination, ensure the generated
 app's final `CFBundleIdentifier` is `com.netease.techcenter.testcase`; otherwise
 the app may be signed with a matching profile but still carry the wrong bundle ID.
+
+For the `nbs_gpu` horizontal OpenGL ES versus Metal comparison on
+`张若君的 iPhone (2)`, use this second combination, which is deliberately not
+`com.netease.technicalcenter`:
+
+- `PROVISIONING_PROFILE_SPECIFIER=testcaseProfile`
+- `PRODUCT_BUNDLE_IDENTIFIER=com.netease.techcenter.testcase`
+- `INFOPLIST_KEY_CFBundleIdentifier=com.netease.techcenter.testcase`
+- `DEVELOPMENT_TEAM=S3NPTV6S84`
+- `CODE_SIGN_IDENTITY=FEBBFCEF2905FD673C85B667231DFC180961F1F5`
 
 ## Closed-loop procedure
 
