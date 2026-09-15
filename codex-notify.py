@@ -21,6 +21,10 @@ LOG_FILE_ALT = os.path.join(os.environ.get("LOCALAPPDATA", ""), "CodexNotify", "
 MSG_FILE = os.path.join(SCRIPT_DIR, "codex-notify-msg.txt")
 PS1_FILE = os.path.join(SCRIPT_DIR, "codex-notify-toast.ps1")
 TASK_NAME = "CodexNotify"
+INTERNAL_PROMPT_PREFIXES = (
+    "Write a brief catch-up for a user returning to this Codex task",
+    "Generate a concise, single-line task title",
+)
 
 
 def log(msg: str) -> None:
@@ -70,6 +74,14 @@ def parse_notification(raw: str):
         msg = _extract_json_string_field(raw, "last-assistant-message") or "Turn complete."
         return {"type": "agent-turn-complete", "last-assistant-message": msg}
     return None
+
+
+def is_internal_task(notification: dict, raw: str) -> bool:
+    input_messages = notification.get("input-messages") or []
+    for message in input_messages:
+        if isinstance(message, str) and message.startswith(INTERNAL_PROMPT_PREFIXES):
+            return True
+    return any(prefix in raw for prefix in INTERNAL_PROMPT_PREFIXES)
 
 def show_toast_win11(title: str, message: str) -> bool:
     try:
@@ -145,6 +157,9 @@ def main() -> int:
     notification = parse_notification(raw)
     if not notification:
         log("exit: parse_notification failed")
+        return 0
+    if is_internal_task(notification, raw):
+        log("exit: internal task")
         return 0
     message = (notification.get("last-assistant-message") or "Turn complete.")[:200]
     strip_brand = str(os.environ.get("CODEX_NOTIFY_STRIP_BRAND", "1")).strip().lower() in {
