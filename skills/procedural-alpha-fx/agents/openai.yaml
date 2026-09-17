@@ -1,0 +1,3 @@
+interface:
+  display_name: "Procedural Alpha Fx"
+  short_description: "Generate transparent procedural VFX with Pillow"
