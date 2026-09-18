@@ -17,6 +17,7 @@ personality = "pragmatic"
 plan_mode_reasoning_effort = "low"
 model = "gpt-5.6-sol"
 model_reasoning_effort = "low"
+# model_catalog_json = 'C:\Users\zhangruojun\.codex\codemaker-models.json'
 
 # =========================
 # Providers（并存）
@@ -176,4 +177,4 @@ sandbox = "unelevated"
 "gpt-5.6-sol" = 4
 
 [features]
-hooks = true
+hooks = false
