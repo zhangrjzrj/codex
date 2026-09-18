@@ -55,14 +55,14 @@ Screenshot evidence:
 
 ```powershell
 adb shell screencap -p /sdcard/evidence.png
-adb pull /sdcard/evidence.png .codex-memory\evidence.png
+adb pull /sdcard/evidence.png .j-memory\evidence.png
 ```
 
 UI dump evidence:
 
 ```powershell
 adb shell uiautomator dump /sdcard/window.xml
-adb pull /sdcard/window.xml .codex-memory\window.xml
+adb pull /sdcard/window.xml .j-memory\window.xml
 ```
 
 Launch app:

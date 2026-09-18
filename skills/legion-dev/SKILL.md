@@ -89,7 +89,7 @@ description: "仅在用户显式要求军团化开发/证据门禁闭环时启�
 - 用户明确中止。
 
 ## Memory Contract（落盘约定）
-项目内落盘到 `.codex-memory/`：
+项目内落盘到 `.j-memory/`：
 - `index.md`：主题索引
 - `threads/*.md`：轮次记录
 

@@ -51,7 +51,7 @@
 - **审阅者（Reviewer）**：基于“变更摘要 + 门禁证据”做放行/驳回，关注边界与风险。
 
 ### 可选 +1（早期可并入编排者）
-- **记录员（Scribe）**：把每步结论与证据摘要落盘到 `.codex-memory/`，并维护主题分流。
+- **记录员（Scribe）**：把每步结论与证据摘要落盘到 `.j-memory/`，并维护主题分流。
 
 ### 最小证据包（交接工件，强制短）
 每一步都用同一格式交接，避免把整段对话当上下文：
@@ -129,7 +129,7 @@ Orchestrator（执行卡/验收标准/派单）
 
 ## 证据包契约（最小可审计产物）
 默认证据包落在当前项目工作目录（不是全局目录）：
-- `.codex-memory/artifacts/legion/YYYYMMDD-HHMMSS-<topic>/`
+- `.j-memory/artifacts/legion/YYYYMMDD-HHMMSS-<topic>/`
 
 必选文件（最小契约）：
 - `execution_card.md`：确认后的执行卡（含 Gate 定义）

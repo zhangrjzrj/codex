@@ -1,6 +1,6 @@
 ---
-name: project-memory-manager
-description: "Persist concise workdir-bound memory in the shared Codex memory store and restore relevant topic memory on demand."
+name: "project-memory-manager"
+description: "Persist concise workdir-bound memory in project-local and shared memory stores, then restore the relevant topic on demand."
 ---
 
 # Project Memory Manager
@@ -17,11 +17,16 @@ Use this skill when:
 
 ## Goal
 
-Keep shared memory low-coupled and resumable across projects and worktrees.
+Keep project-local and shared memory low-coupled and resumable across projects and worktrees.
 
 Use this structure:
 
 ```text
+<project-root>/.j-memory/
+  index.md
+  threads/
+    <topic>.md
+
 <CODEX_HOME>/memories/
   index.md
   projects/<project-key>.md
@@ -29,7 +34,12 @@ Use this structure:
     <topic>.md
 ```
 
-Memory restore/search must always start from this fixed shared path:
+Project-local memory must use `.j-memory/`. Do not create or write a parallel legacy project-memory directory.
+
+Memory restore/search starts with the project-local path, then uses the shared path for cross-session recovery:
+
+- `<project-root>\.j-memory\index.md`
+- `<project-root>\.j-memory\threads\*.md`
 
 - `<CODEX_HOME>\memories\index.md`
 - `<CODEX_HOME>\memories\projects\*.md`
@@ -83,8 +93,9 @@ Prefer stable topic names such as:
 At the end of each round:
 
 1. Decide the current stable topic
-2. Append concise notes into the matching `threads/*.md`
-3. Update `index.md`
+2. Append concise notes into the matching `.j-memory/threads/*.md`
+3. Update `.j-memory/index.md`
+4. Mirror the concise workdir-bound recovery entry into the shared memory store
 
 If the user explicitly declared the topic for the current window, prefer that topic even if the window temporarily includes several side topics.
 Every `/rename` must immediately synchronize the current memory topic in the same round, without requiring an extra "set current topic" command.
@@ -113,12 +124,13 @@ Recommended thread entry format:
 
 When the user asks to restore memory:
 
-1. Read `<CODEX_HOME>\memories\index.md`
-2. Filter index entries by the current absolute working directory
-3. Locate the most relevant topic file in `<CODEX_HOME>\memories\threads\`
-4. Read the recent relevant entries from that topic file
-5. Summarize the conclusions first
-6. Continue execution
+1. Read `<project-root>\.j-memory\index.md` when present
+2. Read `<CODEX_HOME>\memories\index.md`
+3. Filter shared index entries by the current absolute working directory
+4. Locate the most relevant project-local or shared topic file
+5. Read the recent relevant entries from that topic file
+6. Summarize the conclusions first
+7. Continue execution
 
 Do not dump the whole index or whole thread unless the user explicitly asks.
 
@@ -130,6 +142,8 @@ Do not dump the whole index or whole thread unless the user explicitly asks.
 - A `/rename` or user-declared topic rename applies only to the current window/topic binding
 - Never let one window's topic rename affect other windows' memory files
 - If the shared memory directories do not exist, create them
+- If `.j-memory/` does not exist, create it; migrate a legacy project-memory directory only when the user has authorized migration
+- Never maintain `.j-memory/` and a legacy project-memory directory as parallel local truth sources
 - Keep entries short, factual, and resumable
 
 ## Suggested trigger sentences
