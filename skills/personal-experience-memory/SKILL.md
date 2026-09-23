@@ -11,6 +11,8 @@ description: "在开发任务中自动提炼并维护项目级可追溯工程经
 
 经验正文只归当前项目所有；总控目录可以保存跨项目导航索引，但不得保存另一份完整正文。它类似记忆系统的自动沉淀层，不要求用户为每个经验显式发起保存操作。
 
+经验记录采用 Markdown 文件的混合结构：YAML frontmatter 保存机器检索和生命周期字段，自然语言正文保存事实解释、证据、根因、反例和验证过程。frontmatter 是结构化字段的唯一来源；正文不得维护第二套互相矛盾的主题、标签或状态。旧记录缺少 frontmatter 时按 `unverified` 读取，不阻塞当前任务。
+
 它不是：
 
 - 代码事实的替代来源；
@@ -97,6 +99,23 @@ description: "在开发任务中自动提炼并维护项目级可追溯工程经
 状态：candidate / verified / stale / conflicted / unverified
 下一步验证：
 ```
+
+推荐 frontmatter 字段：
+
+```yaml
+topic: nbs-panorama
+problem_domains: [rendering, panorama]
+semantic_tags: [视差, 摄像机平移]
+recall_signals: [近处物体穿帮, 全景球]
+direction: negative
+status: verified
+first_verified: 2026-09-23
+last_verified: 2026-09-23
+supersedes: []
+superseded_by: []
+```
+
+字段只保存主题、问题域、语义标签、联想信号、方向、状态、上下文、验证时间和替代关系；事实解释、根因、方案取舍、排除条件和证据放在正文。使用 `supersedes`/`superseded_by` 追踪合并、替代和归档，不删除历史依据。
 
 ## 写入规则
 
