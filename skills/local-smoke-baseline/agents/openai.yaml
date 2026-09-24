@@ -1,0 +1,3 @@
+interface:
+  display_name: "Local Smoke Baseline"
+  short_description: "Create reproducible local smoke baselines"
