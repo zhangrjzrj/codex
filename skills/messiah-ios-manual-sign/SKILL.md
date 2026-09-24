@@ -25,6 +25,9 @@ Typical triggers:
 - Verified build wrapper: `/Users/game-netease/Desktop/ios_signing/run_hybrid_gui.sh`
 - Verified dedicated keychain: `/Users/game-netease/Desktop/ios_signing/build_reimport.keychain-db`
 - Verified password file: `/Users/game-netease/.ios_ci_keychain_pass`
+- Standard profile source files in `messiah_official`:
+  - `/Users/game-netease/Desktop/messiah_official/profile5test.mobileprovision`
+  - `/Users/game-netease/Desktop/messiah_official/testcaseProfile.mobileprovision`
 - Known good manual signing parameters:
   - `CODE_SIGN_STYLE=Manual`
   - `DEVELOPMENT_TEAM=S3NPTV6S84`
@@ -61,6 +64,41 @@ UDID.
 The profile file name is `testcaseProfile`, but its actual application identifier is
 `com.netease.techcenter.testcase`. Do not use
 `com.netease.technicalcenter.testcase`.
+
+### Verified profile inventory and cache refresh
+
+The two checked-in profile files are the source of truth; do not choose a profile
+only because Xcode finds a same-named cached file:
+
+| File | UUID | Application identifier | Consumer |
+|---|---|---|---|
+| `/Users/game-netease/Desktop/messiah_official/profile5test.mobileprovision` | `b4bfe441-f971-4279-8308-42e3e6d116a0` | `S3NPTV6S84.com.netease.technicalcenter` | Messiah `Game` |
+| `/Users/game-netease/Desktop/messiah_official/testcaseProfile.mobileprovision` | `186a66a1-744c-41e9-bcd9-07e69f690335` | `S3NPTV6S84.com.netease.technicalcenter.testcase` | newbasis `testcase` |
+
+Before signing, install the selected source profile into the macOS profile cache
+and verify its metadata:
+
+```bash
+PROFILE_SRC=/Users/game-netease/Desktop/messiah_official/testcaseProfile.mobileprovision
+PROFILE_UUID=186a66a1-744c-41e9-bcd9-07e69f690335
+PROFILE_DST="$HOME/Library/MobileDevice/Provisioning Profiles/${PROFILE_UUID}.mobileprovision"
+mkdir -p "$(dirname "$PROFILE_DST")"
+cp -f "$PROFILE_SRC" "$PROFILE_DST"
+security cms -D -i "$PROFILE_DST" 2>/dev/null | plutil -extract Name raw -o - -
+security cms -D -i "$PROFILE_DST" 2>/dev/null | plutil -extract UUID raw -o - -
+security cms -D -i "$PROFILE_DST" 2>/dev/null | plutil -extract Entitlements.application-identifier raw -o - -
+```
+
+Do not delete every cached profile as a routine step. Replace only the profile
+for the selected UUID, then verify the final app's embedded profile and
+`CFBundleIdentifier` before installation.
+
+For non-interactive SSH builds, a password dialog is not expected. Always use
+`~/.ios_ci_keychain_pass` and prepare `build_reimport.keychain-db` with
+`unlock-keychain`, `set-keychain-settings`, and `set-key-partition-list` before
+`xcodebuild`. A profile mismatch produces bundle/profile errors; `errSecInternalComponent`
+during framework signing indicates keychain/private-key access and is not fixed
+by replacing the profile.
 
 The `nbs_gpu` source `apple/ios/Info.plist` currently hard-codes
 `com.netease.technicalcenter`. Command-line `PRODUCT_BUNDLE_IDENTIFIER` alone does
