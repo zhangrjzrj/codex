@@ -1,0 +1,4 @@
+interface:
+  display_name: "问题驱动设计闭合"
+  short_description: "从刚性问题反推最小逻辑并验证设计闭合"
+  default_prompt: "使用 $problem-driven-design-closure 从当前刚性问题出发，推导最小且闭合的设计。"
