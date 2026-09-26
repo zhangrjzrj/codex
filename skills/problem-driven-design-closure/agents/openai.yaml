@@ -1,4 +1,4 @@
 interface:
-  display_name: "问题驱动设计闭合"
-  short_description: "从刚性问题反推最小逻辑并验证设计闭合"
-  default_prompt: "使用 $problem-driven-design-closure 从当前刚性问题出发，推导最小且闭合的设计。"
+  display_name: "四步法｜问题驱动设计闭合"
+  short_description: "问题、逻辑、精简、闭合的未知问题求解法"
+  default_prompt: "使用 $problem-driven-design-closure 四步法，从当前刚性问题出发推导最小且闭合的设计。"
