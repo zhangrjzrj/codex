@@ -168,9 +168,13 @@ hide_full_access_warning = true
 "gpt-5.2" = "gpt-5.4"
 "gpt-5.3-codex" = "gpt-5.4"
 "gpt-5.4" = "gpt-5.6-terra"
+"gpt-5.6-sol" = "gpt-6-sol"
 
 [windows]
 sandbox = "unelevated"
+
+[tui]
+screen_reader_detection_done = true
 
 [tui.model_availability_nux]
 "gpt-5.5" = 4
@@ -178,3 +182,5 @@ sandbox = "unelevated"
 
 [features]
 hooks = false
+daemon_auto_start = false
+realtime_conversation = false
